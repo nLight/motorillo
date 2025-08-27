@@ -618,10 +618,10 @@ void updateDisplay() {
     // Programming mode display
     display.print(F("PROG "));
     if (config.cycleMode) {
-      display.print(F("CYCLE L:"));
+      display.print(F("CYCLE L:\n"));
       display.print(config.cycleLength);
     } else {
-      display.print(F("STEPS P:"));
+      display.print(F("STEPS P:\n"));
       display.print(config.programCount);
     }
   } else {

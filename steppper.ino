@@ -637,7 +637,7 @@ void updateDisplay() {
     }
     
     if (config.cycleMode) {
-      display.print(F("CYCLE "));
+      display.print(F("CYCLE\n"));
       display.print(currentPosition);
       display.print(F("/"));
       display.print(config.cycleLength);
@@ -759,18 +759,23 @@ void selectMenuItem() {
       break;
       
     case 2: // Info/Settings
-      // Show system info
+      // Show system info on 2 lines
       display.clearDisplay();
       display.setTextSize(1);
       display.setTextColor(SSD1306_WHITE);
+      
+      // Line 1: Programs and Cycle mode
       display.setCursor(0, 0);
-      display.print("PGM:");
+      display.print(F("PGM:"));
       display.print(config.programCount);
-      display.print(" CYC:");
-      display.print(config.cycleMode ? "Y" : "N");
+      display.print(F(" CYC:"));
+      display.print(config.cycleMode ? F("Y") : F("N"));
+      
+      // Line 2: Current position
       display.setCursor(0, 8);
-      display.print("POS:");
+      display.print(F("POS:"));
       display.print(currentPosition);
+      
       display.display();
       delay(2000);
       exitMenuMode();

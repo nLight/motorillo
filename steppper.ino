@@ -78,13 +78,7 @@ struct SliderConfig {
   uint16_t speed;           // Delay between steps (microseconds)
   uint16_t acceleration;    // Acceleration steps
   uint8_t programCount;     // Number of stored programs
-  bool cycleMode;           // Enable cycle mode instead of programs
-  uint16_t cycleLength;     // Rail length in steps
-  uint16_t cycleSpeed1;     // Speed going forward
-  uint16_t cycleSpeed2;     // Speed going backward
-  uint16_t cyclePause1;     // Pause at start position (ms)
-  uint16_t cyclePause2;     // Pause at end position (ms)
-  uint8_t reserved[1];      // Reserved for future use
+  uint8_t reserved[9];      // Reserved for future use (was cycle fields)
 };
 
 // Movement program structure
@@ -136,12 +130,6 @@ void loadConfig() {
     config.speed = 1000;
     config.acceleration = 50;
     config.programCount = 0;
-    config.cycleMode = false;
-    config.cycleLength = 1000;
-    config.cycleSpeed1 = 1000;
-    config.cycleSpeed2 = 1000;
-    config.cyclePause1 = 1000;
-    config.cyclePause2 = 1000;
     saveConfig();
   }
 }
@@ -299,20 +287,8 @@ void processCommand(String command) {
       displayMessage(F("Config OK"));
     }
   }
-  else if (c == 'C' && command.charAt(1) == 'Y') { // CYCLE
-    int commaIndex = command.indexOf(',');
-    config.cycleLength = command.substring(commaIndex + 1, command.indexOf(',', commaIndex + 1)).toInt();
-    commaIndex = command.indexOf(',', commaIndex + 1);
-    config.cycleSpeed1 = command.substring(commaIndex + 1, command.indexOf(',', commaIndex + 1)).toInt();
-    commaIndex = command.indexOf(',', commaIndex + 1);
-    config.cycleSpeed2 = command.substring(commaIndex + 1, command.indexOf(',', commaIndex + 1)).toInt();
-    commaIndex = command.indexOf(',', commaIndex + 1);
-    config.cyclePause1 = command.substring(commaIndex + 1, command.indexOf(',', commaIndex + 1)).toInt();
-    commaIndex = command.indexOf(',', commaIndex + 1);
-    config.cyclePause2 = command.substring(commaIndex + 1).toInt();
-    config.cycleMode = true;
-    saveConfig();
-    displayMessage(F("Cycle OK"));
+  else if (c == 'C' && command.charAt(1) == 'Y') { // CYCLE - deprecated, use cycling programs instead
+    displayMessage(F("Use CYCLE program"));
   }
   else if (c == 'P') { // PROGRAM or POS
     if (command.charAt(1) == 'R') { // PROGRAM
@@ -483,44 +459,6 @@ void runProgram(uint8_t programId) {
   }
 }
 
-void executeCycleMode() {
-  static bool goingForward = true;
-  
-  if (programPaused) {
-    return; // Don't execute if paused
-  }
-  
-  if (goingForward) {
-    // Move to end position
-    moveToPositionWithSpeed(config.cycleLength, config.cycleSpeed1);
-    if (programPaused) return; // Check if paused during movement
-    
-    if (config.cyclePause2 > 0) {
-      unsigned long pauseStart = millis();
-      while (millis() - pauseStart < config.cyclePause2) {
-        checkButton();
-        if (programPaused) return;
-        delay(10);
-      }
-    }
-    goingForward = false;
-  } else {
-    // Move back to start position
-    moveToPositionWithSpeed(0, config.cycleSpeed2);
-    if (programPaused) return; // Check if paused during movement
-    
-    if (config.cyclePause1 > 0) {
-      unsigned long pauseStart = millis();
-      while (millis() - pauseStart < config.cyclePause1) {
-        checkButton();
-        if (programPaused) return;
-        delay(10);
-      }
-    }
-    goingForward = true;
-  }
-}
-
 void executeStoredProgram() {
   // Don't execute if paused
   if (programPaused) {
@@ -528,9 +466,7 @@ void executeStoredProgram() {
     return;
   }
   
-  if (config.cycleMode) {
-    executeCycleMode();
-  } else if (config.programCount > 0) {
+  if (config.programCount > 0) {
     // Run the selected program from menu, or first program if no menu selection
     int programToRun = 0;
     
@@ -542,8 +478,19 @@ void executeStoredProgram() {
       }
     }
     
+    // Check if this is a cycling program based on name
+    char programName[9];
+    loadProgramName(programToRun, programName);
+    bool isCycling = (strncmp(programName, "CYCLE", 5) == 0) || (strncmp(programName, "LOOP", 4) == 0);
+    
     runProgram(programToRun);
-    delay(1000); // Brief pause between program cycles
+    
+    // If it's a cycling program, restart it immediately
+    if (isCycling) {
+      delay(500); // Brief pause between cycles
+    } else {
+      delay(1000); // Brief pause between program cycles
+    }
   } else {
     // No program stored, just idle
     delay(100);
@@ -626,13 +573,8 @@ void updateDisplay() {
   } else if (programmingMode) {
     // Programming mode display
     display.print(F("PROG "));
-    if (config.cycleMode) {
-      display.print(F("CYC L:\n"));
-      display.print(config.cycleLength);
-    } else {
-      display.print(F("P:"));
-      display.print(config.programCount);
-    }
+    display.print(F("P:"));
+    display.print(config.programCount);
   } else {
     // Standalone mode display
     if (programRunning) {
@@ -645,15 +587,8 @@ void updateDisplay() {
       display.print(F("STOP "));
     }
     
-    if (config.cycleMode) {
-      display.print(F("CYC\n"));
-      display.print(currentPosition);
-      display.print(F("/"));
-      display.print(config.cycleLength);
-    } else {
-      display.print(F("POS:"));
-      display.print(currentPosition);
-    }
+    display.print(F("POS:"));
+    display.print(currentPosition);
   }
 
   display.display();
@@ -695,14 +630,6 @@ void buildMenuItems() {
     menuItems[menuItemCount].name = programName; // Direct assignment instead of String()
     menuItems[menuItemCount].type = 0;
     menuItems[menuItemCount].id = i;
-    menuItemCount++;
-  }
-  
-  // Add cycle mode if configured
-  if (config.cycleMode) {
-    menuItems[menuItemCount].name = F("CYCLE");
-    menuItems[menuItemCount].type = 1;
-    menuItems[menuItemCount].id = 0;
     menuItemCount++;
   }
   
@@ -754,13 +681,6 @@ void selectMenuItem() {
       programPaused = false;
       break;
       
-    case 1: // Cycle
-      exitMenuMode();
-      displayMessage(F("CYCLE"), 200);
-      programRunning = true;
-      programPaused = false;
-      break;
-      
     case 2: // Info
       display.clearDisplay();
       display.setTextSize(1);
@@ -769,8 +689,6 @@ void selectMenuItem() {
       display.setCursor(0, 0);
       display.print(F("PGM:"));
       display.print(config.programCount);
-      display.print(F(" CYC:"));
-      display.print(config.cycleMode ? F("Y") : F("N"));
       
       display.setCursor(0, 8);
       display.print(F("POS:"));

@@ -19,7 +19,6 @@
         <main>
             <div class="tabs">
                 <button class="tab-btn active" data-tab="config">Configuration</button>
-                <button class="tab-btn" data-tab="cycle">Cycle Mode</button>
                 <button class="tab-btn" data-tab="program">Program Mode</button>
                 <button class="tab-btn" data-tab="control">Manual Control</button>
             </div>
@@ -47,40 +46,12 @@
                 </form>
             </div>
 
-            <!-- Cycle Mode Tab -->
-            <div id="cycle" class="tab-content">
-                <h2>Cycle Mode Setup</h2>
-                <form id="cycleForm">
-                    <div class="form-group">
-                        <label for="cycleLength">Rail Length (steps):</label>
-                        <input type="number" id="cycleLength" value="5334" min="100" max="20000">
-                        <span class="help">Distance to travel back and forth. 5334 = full rail with 9:240 gears</span>
-                    </div>
-                    <div class="form-group">
-                        <label for="forwardSpeed">Forward Speed (μs):</label>
-                        <input type="number" id="forwardSpeed" value="337500" min="100" max="1000000">
-                        <span class="help">337500μs = 1hr full travel</span>
-                    </div>
-                    <div class="form-group">
-                        <label for="backwardSpeed">Backward Speed (μs):</label>
-                        <input type="number" id="backwardSpeed" value="337500" min="100" max="1000000">
-                        <span class="help">337500μs = 1hr full travel</span>
-                    </div>
-                    <div class="form-group">
-                        <label for="startPause">Pause at Start (ms):</label>
-                        <input type="number" id="startPause" value="1000" min="0" max="10000">
-                    </div>
-                    <div class="form-group">
-                        <label for="endPause">Pause at End (ms):</label>
-                        <input type="number" id="endPause" value="500" min="0" max="10000">
-                    </div>
-                    <button type="submit">Enable Cycle Mode</button>
-                </form>
-            </div>
-
             <!-- Program Mode Tab -->
             <div id="program" class="tab-content">
                 <h2>Program Builder</h2>
+                <div class="help" style="background: #e3f2fd; padding: 1rem; margin-bottom: 1rem; border-radius: 4px;">
+                    <strong>💡 Cycling Programs:</strong> Name your program starting with "CYCLE" or "LOOP" (e.g., "CYCLE1H", "LOOP30M") to make it repeat automatically!
+                </div>
                 <div class="program-builder">
                     <div class="steps-container">
                         <div class="program-selector">
@@ -100,7 +71,7 @@
                         </div>
                         <div class="program-name">
                             <label for="programName">Program Name (8 chars max):</label>
-                            <input type="text" id="programName" maxlength="8" placeholder="e.g. 1h, 30m, PORTRAIT" style="text-transform: uppercase;">
+                            <input type="text" id="programName" maxlength="8" placeholder="e.g. CYCLE1H, LOOP30M, PORTRAIT" style="text-transform: uppercase;">
                             <span class="help">Short descriptive name for easy identification</span>
                         </div>
                         <h3>Movement Steps</h3>

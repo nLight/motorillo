@@ -36,9 +36,6 @@ class SliderController {
     document
       .getElementById("configForm")
       .addEventListener("submit", (e) => this.handleConfigSubmit(e));
-    document
-      .getElementById("cycleForm")
-      .addEventListener("submit", (e) => this.handleCycleSubmit(e));
 
     // Manual controls
     document
@@ -193,18 +190,6 @@ class SliderController {
     const acceleration = document.getElementById("acceleration").value;
 
     const command = `CFG,${totalSteps},${speed},${acceleration}`;
-    this.sendCommand(command);
-  }
-
-  handleCycleSubmit(e) {
-    e.preventDefault();
-    const length = document.getElementById("cycleLength").value;
-    const speed1 = document.getElementById("forwardSpeed").value;
-    const speed2 = document.getElementById("backwardSpeed").value;
-    const pause1 = document.getElementById("startPause").value;
-    const pause2 = document.getElementById("endPause").value;
-
-    const command = `CYCLE,${length},${speed1},${speed2},${pause1},${pause2}`;
     this.sendCommand(command);
   }
 

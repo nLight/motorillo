@@ -551,14 +551,16 @@ void checkButton() {
               // In standalone mode
               if (inPauseMenu) {
                 selectPauseMenuItem();
-              } else if (programRunning && !inMenuMode) {
-                // Long press while program is running - enter pause menu
+              } else if (programRunning && !inMenuMode && !programPaused) {
+                // Long press while program is actively running - enter pause menu
                 enterPauseMenu();
               } else if (inMenuMode) {
                 selectMenuItem();
-              } else {
+              } else if (!programRunning) {
+                // Only allow menu access when program is stopped
                 enterMenuMode();
               }
+              // Note: No action for long press during pause
             }
           } else {
             // Short press
@@ -572,15 +574,12 @@ void checkButton() {
                 navigatePauseMenu();
               } else if (inMenuMode) {
                 navigateMenu();
-              } else if (programRunning) {
-                // Short press while running - stop the program
-                programRunning = false;
-                programPaused = false;
-                displayMessage(F("Stopped"), 500);
-              } else {
-                // Not running, enter menu
+              } else if (!programRunning) {
+                // Only allow menu access when program is NOT running
                 enterMenuMode();
               }
+              // Note: No action for short press while program is running
+              // Only long press can pause during execution
             }
           }
           
@@ -598,10 +597,6 @@ void checkButton() {
   // Check for long press while button is still held
   if (buttonPressed && !longPressDetected && (millis() - buttonPressTime) >= longPressThreshold) {
     longPressDetected = true;
-    // Visual feedback for long press detection
-    if (!programmingMode && programRunning) {
-      displayMessage(F("PAUSE"), 200);
-    }
   }
   
   lastButtonState = reading;

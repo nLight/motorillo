@@ -565,7 +565,7 @@ void checkButton() {
             if (programmingMode) {
               // In programming mode, just toggle like before
               programRunning = !programRunning;
-              displayMessage(programRunning ? "Started" : "Stopped", 500);
+              displayMessage(programRunning ? F("Started") : F("Stopped"), 500);
             } else {
               // In standalone mode
               if (inPauseMenu) {
@@ -836,9 +836,9 @@ void selectPauseMenuItem() {
     case 1: // ABORT
       programRunning = false;
       programPaused = false;
-      exitPauseMenu();
-      enterMenuMode(); // Return to main menu
-      displayMessage(F("ABORTED"), 300);
+      inPauseMenu = false;  // Exit pause menu first
+      displayMessage(F("ABORT"), 800);  // Longer duration to reduce glitch
+      // Don't call enterMenuMode() here - let it happen naturally
       break;
   }
 }

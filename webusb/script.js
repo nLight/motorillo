@@ -28,7 +28,7 @@ class SliderController {
     // Tabs
     document.querySelectorAll(".tab-btn").forEach((btn) => {
       btn.addEventListener("click", (e) =>
-        this.switchTab(e.target.dataset.tab),
+        this.switchTab(e.target.dataset.tab)
       );
     });
 
@@ -64,9 +64,27 @@ class SliderController {
     document
       .getElementById("testProgram")
       .addEventListener("click", () => this.testProgram());
+    document
+      .getElementById("loadProgram")
+      .addEventListener("click", () => this.loadProgram());
+    document
+      .getElementById("clearSteps")
+      .addEventListener("click", () => this.clearSteps());
 
     // Initialize with one step
     this.addProgramStep();
+
+    // Initialize program storage
+    this.programs = {}; // Store programs locally for editing
+    this.programNames = {}; // Store program names locally
+
+    // Load saved program names from localStorage
+    this.loadProgramNames();
+
+    // Set up program slot change handler
+    document.getElementById("programSlot").addEventListener("change", () => {
+      this.loadProgramNameFromStorage();
+    });
   }
 
   async autoConnect() {
@@ -87,7 +105,7 @@ class SliderController {
         await this.disconnect();
         return;
       }
-      
+
       this.port = await serial.requestPort();
       await this.connectToPort(this.port);
     } catch (error) {
@@ -109,12 +127,11 @@ class SliderController {
       };
 
       await port.connect();
-      
+
       this.port = port;
       this.connected = true;
       this.updateConnectionStatus(true);
       this.log("Connected to slider successfully!");
-      
     } catch (error) {
       this.log("Connection error: " + error.message);
       this.connected = false;
@@ -145,11 +162,10 @@ class SliderController {
     try {
       const encoder = new TextEncoder();
       const data = encoder.encode(command + "\n");
-      
+
       await this.port.send(data);
       this.log(`Sent: ${command}`);
       return true;
-      
     } catch (error) {
       this.log("Send error: " + error.message);
       return false;
@@ -176,7 +192,7 @@ class SliderController {
     const speed = document.getElementById("defaultSpeed").value;
     const acceleration = document.getElementById("acceleration").value;
 
-    const command = `CONFIG,${totalSteps},${speed},${acceleration}`;
+    const command = `CFG,${totalSteps},${speed},${acceleration}`;
     this.sendCommand(command);
   }
 
@@ -221,20 +237,86 @@ class SliderController {
       return;
     }
 
-    let command = `PROGRAM,0,${steps.length}`;
+    const programSlot = document.getElementById("programSlot").value;
+    const programName =
+      document.getElementById("programName").value.trim() ||
+      `PGM${parseInt(programSlot) + 1}`;
 
+    // Limit program name to 8 characters
+    const limitedName = programName.substring(0, 8).toUpperCase();
+
+    let command = `PROGRAM,${programSlot},${limitedName},${steps.length}`;
+
+    // Build step data
+    const stepData = [];
     steps.forEach((step) => {
       const position = step.querySelector(".step-position").value;
       const speed = step.querySelector(".step-speed").value;
       const pause = step.querySelector(".step-pause").value;
       command += `,${position},${speed},${pause}`;
+      stepData.push({ position, speed, pause });
     });
 
+    // Store program and name locally for future editing
+    this.programs[programSlot] = stepData;
+    this.programNames[programSlot] = limitedName;
+    this.saveProgramNames();
+
+    // Update the input field with the limited name
+    document.getElementById("programName").value = limitedName;
+
+    // Send to Arduino
     this.sendCommand(command);
+    this.log(
+      `Program "${limitedName}" saved to slot ${
+        parseInt(programSlot) + 1
+      } with ${steps.length} steps`
+    );
   }
 
   testProgram() {
-    this.sendCommand("RUN,0");
+    const programSlot = document.getElementById("programSlot").value;
+    this.sendCommand(`RUN,${programSlot}`);
+    this.log(`Testing Program ${parseInt(programSlot) + 1}`);
+  }
+
+  loadProgram() {
+    const programSlot = document.getElementById("programSlot").value;
+    const program = this.programs[programSlot];
+    const programName =
+      this.programNames[programSlot] || `PGM${parseInt(programSlot) + 1}`;
+
+    if (!program) {
+      this.log(`No program data found for slot ${parseInt(programSlot) + 1}`);
+      return;
+    }
+
+    // Clear existing steps
+    this.clearSteps();
+
+    // Load program name
+    document.getElementById("programName").value = programName;
+
+    // Load steps from stored program
+    program.forEach((step, index) => {
+      this.addProgramStep();
+      const stepDiv = document.querySelectorAll(".program-step")[index];
+      stepDiv.querySelector(".step-position").value = step.position;
+      stepDiv.querySelector(".step-speed").value = step.speed;
+      stepDiv.querySelector(".step-pause").value = step.pause;
+    });
+
+    this.log(
+      `Loaded Program "${programName}" from slot ${
+        parseInt(programSlot) + 1
+      } with ${program.length} steps`
+    );
+  }
+
+  clearSteps() {
+    const stepsList = document.getElementById("stepsList");
+    stepsList.innerHTML = "";
+    this.log("Cleared all steps");
   }
 
   updateConnectionStatus(connected) {
@@ -251,6 +333,26 @@ class SliderController {
       status.className = "status-disconnected";
       connectBtn.textContent = "Connect Slider";
       connectBtn.onclick = () => this.connect();
+    }
+  }
+
+  loadProgramNameFromStorage() {
+    const programSlot = document.getElementById("programSlot").value;
+    const programName = this.programNames[programSlot] || "";
+    document.getElementById("programName").value = programName;
+  }
+
+  saveProgramNames() {
+    localStorage.setItem(
+      "sliderProgramNames",
+      JSON.stringify(this.programNames)
+    );
+  }
+
+  loadProgramNames() {
+    const saved = localStorage.getItem("sliderProgramNames");
+    if (saved) {
+      this.programNames = JSON.parse(saved);
     }
   }
 

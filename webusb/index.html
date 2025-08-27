@@ -83,6 +83,26 @@
                 <h2>Program Builder</h2>
                 <div class="program-builder">
                     <div class="steps-container">
+                        <div class="program-selector">
+                            <label for="programSlot">Program Slot:</label>
+                            <select id="programSlot">
+                                <option value="0">Program 1</option>
+                                <option value="1">Program 2</option>
+                                <option value="2">Program 3</option>
+                                <option value="3">Program 4</option>
+                                <option value="4">Program 5</option>
+                                <option value="5">Program 6</option>
+                                <option value="6">Program 7</option>
+                                <option value="7">Program 8</option>
+                                <option value="8">Program 9</option>
+                                <option value="9">Program 10</option>
+                            </select>
+                        </div>
+                        <div class="program-name">
+                            <label for="programName">Program Name (8 chars max):</label>
+                            <input type="text" id="programName" maxlength="8" placeholder="e.g. 1h, 30m, PORTRAIT" style="text-transform: uppercase;">
+                            <span class="help">Short descriptive name for easy identification</span>
+                        </div>
                         <h3>Movement Steps</h3>
                         <div id="stepsList"></div>
                         <button id="addStep">Add Step</button>
@@ -90,6 +110,8 @@
                     <div class="program-actions">
                         <button id="saveProgram">Save Program</button>
                         <button id="testProgram">Test Program</button>
+                        <button id="loadProgram">Load Program</button>
+                        <button id="clearSteps">Clear Steps</button>
                     </div>
                 </div>
             </div>

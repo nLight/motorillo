@@ -611,12 +611,73 @@ void displayMessage(String message, int duration = 1000) {
 
 void playBootAnimation() {
   display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(32, 4);
-  display.print(F("READY"));
-  display.display();
-  delay(500);
+  
+  // Draw camera sliding animation
+  for (int x = -16; x <= SCREEN_WIDTH; x += 3) {
+    display.clearDisplay();
+    
+    // Draw rail/track line
+    display.drawLine(0, 12, SCREEN_WIDTH-1, 12, SSD1306_WHITE);
+    display.drawLine(0, 13, SCREEN_WIDTH-1, 13, SSD1306_WHITE);
+    
+    // Draw cute camera icon sliding on the rail
+    if (x >= 0 && x < SCREEN_WIDTH - 16) {
+      // Camera body (rectangle with rounded corners effect)
+      display.drawRect(x, 6, 14, 8, SSD1306_WHITE);
+      display.drawRect(x+1, 7, 12, 6, SSD1306_WHITE);
+      
+      // Camera lens
+      display.drawCircle(x+7, 10, 2, SSD1306_WHITE);
+      display.drawPixel(x+7, 10, SSD1306_WHITE);
+      
+      // Camera viewfinder
+      display.drawRect(x+2, 6, 3, 2, SSD1306_WHITE);
+      
+      // Flash
+      display.drawPixel(x+11, 7, SSD1306_WHITE);
+      display.drawPixel(x+12, 7, SSD1306_WHITE);
+    }
+    
+    // Add motion blur/trail effect
+    if (x > 5) {
+      for (int trail = 1; trail <= 3; trail++) {
+        int trailX = x - trail * 4;
+        if (trailX >= 0 && trailX < SCREEN_WIDTH - 16) {
+          // Fading trail dots
+          display.drawPixel(trailX + 7, 10, SSD1306_WHITE);
+          if (trail <= 2) {
+            display.drawPixel(trailX + 6, 10, SSD1306_WHITE);
+            display.drawPixel(trailX + 8, 10, SSD1306_WHITE);
+          }
+        }
+      }
+    }
+    
+    display.display();
+    delay(80);
+  }
+  
+  // Final flourish - camera "flashes" and shows startup message
+  for (int flash = 0; flash < 3; flash++) {
+    display.clearDisplay();
+    
+    // Draw final rail
+    display.drawLine(0, 12, SCREEN_WIDTH-1, 12, SSD1306_WHITE);
+    display.drawLine(0, 13, SCREEN_WIDTH-1, 13, SSD1306_WHITE);
+    
+    if (flash % 2 == 0) {
+      // Flash effect - invert screen briefly
+      display.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, SSD1306_WHITE);
+      display.setTextColor(SSD1306_BLACK);
+    } else {
+      display.setTextColor(SSD1306_WHITE);
+    }
+        
+    display.display();
+    delay(200);
+  }
+
+  delay(1000);
 }
 
 // Menu system functions

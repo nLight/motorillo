@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slider Controller - WebUSB</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Motorized Slider Controller</h1>
+            <div class="connection-status">
+                <span id="status">Disconnected</span>
+                <button id="connectBtn">Connect Slider</button>
+            </div>
+        </header>
+
+        <main>
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="config">Configuration</button>
+                <button class="tab-btn" data-tab="cycle">Cycle Mode</button>
+                <button class="tab-btn" data-tab="program">Program Mode</button>
+                <button class="tab-btn" data-tab="control">Manual Control</button>
+            </div>
+
+            <!-- Configuration Tab -->
+            <div id="config" class="tab-content active">
+                <h2>Slider Configuration</h2>
+                <form id="configForm">
+                    <div class="form-group">
+                        <label for="totalSteps">Total Steps (Rail Length):</label>
+                        <input type="number" id="totalSteps" value="2000" min="100" max="10000">
+                        <span class="help">Maximum steps for full slider travel</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="defaultSpeed">Default Speed (μs delay):</label>
+                        <input type="number" id="defaultSpeed" value="1000" min="100" max="1000000">
+                        <span class="help">Lower = faster movement. For timelapse: 337500μs = 1hr full travel</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="acceleration">Acceleration Steps:</label>
+                        <input type="number" id="acceleration" value="50" min="0" max="200">
+                        <span class="help">Steps for smooth start/stop</span>
+                    </div>
+                    <button type="submit">Save Configuration</button>
+                </form>
+            </div>
+
+            <!-- Cycle Mode Tab -->
+            <div id="cycle" class="tab-content">
+                <h2>Cycle Mode Setup</h2>
+                <form id="cycleForm">
+                    <div class="form-group">
+                        <label for="cycleLength">Rail Length (steps):</label>
+                        <input type="number" id="cycleLength" value="5334" min="100" max="20000">
+                        <span class="help">Distance to travel back and forth. 5334 = full rail with 9:240 gears</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="forwardSpeed">Forward Speed (μs):</label>
+                        <input type="number" id="forwardSpeed" value="337500" min="100" max="1000000">
+                        <span class="help">337500μs = 1hr full travel</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="backwardSpeed">Backward Speed (μs):</label>
+                        <input type="number" id="backwardSpeed" value="337500" min="100" max="1000000">
+                        <span class="help">337500μs = 1hr full travel</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="startPause">Pause at Start (ms):</label>
+                        <input type="number" id="startPause" value="1000" min="0" max="10000">
+                    </div>
+                    <div class="form-group">
+                        <label for="endPause">Pause at End (ms):</label>
+                        <input type="number" id="endPause" value="500" min="0" max="10000">
+                    </div>
+                    <button type="submit">Enable Cycle Mode</button>
+                </form>
+            </div>
+
+            <!-- Program Mode Tab -->
+            <div id="program" class="tab-content">
+                <h2>Program Builder</h2>
+                <div class="program-builder">
+                    <div class="steps-container">
+                        <h3>Movement Steps</h3>
+                        <div id="stepsList"></div>
+                        <button id="addStep">Add Step</button>
+                    </div>
+                    <div class="program-actions">
+                        <button id="saveProgram">Save Program</button>
+                        <button id="testProgram">Test Program</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manual Control Tab -->
+            <div id="control" class="tab-content">
+                <h2>Manual Control</h2>
+                <div class="control-panel">
+                    <div class="program-controls">
+                        <button id="startBtn">Start Program</button>
+                        <button id="stopBtn">Stop Program</button>
+                    </div>
+                    <button id="homeBtn">Home (Position 0)</button>
+                    <div class="position-control">
+                        <label for="targetPosition">Go to Position:</label>
+                        <input type="number" id="targetPosition" value="0" min="0" max="5000">
+                        <button id="moveBtn">Move</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <div class="console">
+            <h3>Console Output</h3>
+            <div id="console-output"></div>
+        </div>
+    </div>
+
+    <script src="serial.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

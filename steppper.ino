@@ -18,7 +18,7 @@ WebUSB WebUSBSerial(1 /* https:// */, "localhost:8000");
 // Define pin connections
 const int dirPin = 10;
 const int stepPin = 16;
-const int buttonPin = 2;  // Start/Stop button
+const int buttonPin = 9;  // Start/Stop button
 
 const int stepsPerRevolution = 200;
 
@@ -28,6 +28,31 @@ bool lastButtonState = HIGH;
 bool buttonState = HIGH;
 unsigned long lastDebounceTime = 0;
 const unsigned long debounceDelay = 50;
+
+// Menu system variables
+bool inMenuMode = false;
+int currentMenuIndex = 0;
+int menuItemCount = 0;
+bool buttonPressed = false;
+unsigned long buttonPressTime = 0;
+const unsigned long longPressThreshold = 1000; // 1 second for long press
+const unsigned long shortPressThreshold = 50;   // Minimum press time
+bool longPressDetected = false;
+
+// Pause menu system
+bool inPauseMenu = false;
+int pauseMenuIndex = 0;
+const int pauseMenuItems = 2; // RESUME, ABORT
+bool programPaused = false;
+
+// Menu items structure
+struct MenuItem {
+  String name;
+  int type; // 0=program, 1=cycle, 2=settings
+  int id;   // program ID or setting ID
+};
+
+MenuItem menuItems[12]; // Max 10 programs + cycle + settings
 
 // OLED display configuration
 #define SCREEN_WIDTH 96
@@ -83,6 +108,17 @@ bool programmingMode = false;
 void updateDisplay();
 void displayMessage(String message, int duration = 1000);
 void playBootAnimation();
+void buildMenuItems();
+void enterMenuMode();
+void exitMenuMode();
+void navigateMenu();
+void selectMenuItem();
+void displayMenu();
+void enterPauseMenu();
+void exitPauseMenu();
+void navigatePauseMenu();
+void selectPauseMenuItem();
+void displayPauseMenu();
 
 // EEPROM functions
 void loadConfig() {
@@ -157,6 +193,9 @@ void setup() {
 
   loadConfig();
   
+  // Build menu items based on stored programs
+  buildMenuItems();
+  
   // Update display with initial status
   updateDisplay();
 
@@ -169,25 +208,20 @@ void loop() {
       // WebUSB is available, switch to programming mode
       if (!programmingMode) {
         programmingMode = true;
-        Serial.write("Slider Ready. Connect WebUSB to program.\r\n> ");
+        Serial.write(F("Slider Ready\r\n> "));
         Serial.flush();
-        displayMessage("WebUSB Ready", 1000);
       }
     } else if (millis() - bootTime >= serialWaitTime) {
       // Timeout reached, finalize mode
       serialCheckComplete = true;
-      if (!programmingMode) {
-        displayMessage("Standalone Mode", 1000);
-      }
     }
   }
   
   // Continue to check for WebUSB connection even after boot
   if (serialCheckComplete && !programmingMode && Serial) {
     programmingMode = true;
-    Serial.write("WebUSB Connected!\r\n> ");
+    Serial.write(F("Connected!\r\n> "));
     Serial.flush();
-    displayMessage("WebUSB Connected!", 1000);
   }
   
   // Check button state (with debouncing)
@@ -224,7 +258,7 @@ void processCommand(String command) {
       config.acceleration = command.substring(thirdComma + 1).toInt();
       saveConfig();
       displayMessage("Config Updated");
-      Serial.write("Config updated\r\n> ");
+      Serial.write(F("Config updated\r\n> "));
     }
   } 
   else if (command.startsWith("PROGRAM")) {
@@ -250,17 +284,18 @@ void processCommand(String command) {
       saveProgram(programId, steps, stepCount);
       config.programCount = max(config.programCount, programId + 1);
       saveConfig();
-      displayMessage("Program Saved");
-      Serial.write("Program saved\r\n> ");
+      buildMenuItems(); // Rebuild menu with new programs
+      displayMessage(F("Program Saved"));
+      Serial.write(F("Program saved\r\n> "));
     }
   }
   else if (command.startsWith("RUN")) {
     // Format: RUN,programId
     int programId = command.substring(4).toInt();
-    displayMessage("Running Program");
+    displayMessage(F("Running Program"));
     runProgram(programId);
   }
-  else if (command.startsWith("CYCLE")) {
+  else if (command.startsWith(F("CYCLE"))) {
     // Format: CYCLE,length,speed1,speed2,pause1,pause2
     int commaIndex = command.indexOf(',');
     config.cycleLength = command.substring(commaIndex + 1, command.indexOf(',', commaIndex + 1)).toInt();
@@ -274,35 +309,35 @@ void processCommand(String command) {
     config.cyclePause2 = command.substring(commaIndex + 1).toInt();
     config.cycleMode = true;
     saveConfig();
-    displayMessage("Cycle Mode Set");
-    Serial.write("Cycle mode configured\r\n> ");
+    displayMessage(F("Cycle Mode Set"));
+    Serial.write(F("Cycle mode configured\r\n> "));
   }
-  else if (command.startsWith("POS")) {
+  else if (command.startsWith(F("POS"))) {
     // Format: POS,position
     int position = command.substring(4).toInt();
-    displayMessage("Moving...");
+    displayMessage(F("Moving..."));
     moveToPosition(position);
     updateDisplay();
-    Serial.write("Moved to position\r\n> ");
+    Serial.write(F("Moved to position\r\n> "));
   }
-  else if (command.startsWith("START")) {
+  else if (command.startsWith(F("START"))) {
     programRunning = true;
-    displayMessage("Started");
-    Serial.write("Program started\r\n> ");
+    displayMessage(F("Started"));
+    Serial.write(F("Program started\r\n> "));
   }
-  else if (command.startsWith("STOP")) {
+  else if (command.startsWith(F("STOP"))) {
     programRunning = false;
-    displayMessage("Stopped");
-    Serial.write("Program stopped\r\n> ");
+    displayMessage(F("Stopped"));
+    Serial.write(F("Program stopped\r\n> "));
   }
-  else if (command.startsWith("HOME")) {
-    displayMessage("Homing...");
+  else if (command.startsWith(F("HOME"))) {
+    displayMessage(F("Homing..."));
     moveToPosition(0);
     updateDisplay();
-    Serial.write("Homed\r\n> ");
+    Serial.write(F("Homed\r\n> "));
   }
   else {
-    Serial.write("Unknown command\r\n> ");
+    Serial.write(F("Unknown command\r\n> "));
   }
   Serial.flush();
 }
@@ -319,6 +354,14 @@ void moveToPositionWithSpeed(long targetPosition, uint16_t speed) {
   
   // Apply acceleration/deceleration
   for (long i = 0; i < stepsToMove; i++) {
+    // Check for pause request during movement
+    checkButton();
+    if (programPaused) {
+      // Update current position to where we actually are
+      currentPosition += direction ? i : -i;
+      return; // Exit movement if paused
+    }
+    
     uint16_t stepDelay = speed;
     
     // Acceleration phase
@@ -332,21 +375,40 @@ void moveToPositionWithSpeed(long targetPosition, uint16_t speed) {
     
     digitalWrite(stepPin, HIGH);
     
-    // Handle both short and long delays
+    // Handle both short and long delays with button checking
     if (stepDelay <= 16383) {
       delayMicroseconds(stepDelay);
     } else {
-      delay(stepDelay / 1000);  // Convert to milliseconds
+      // For long delays, break into smaller chunks to check button
+      unsigned long delayStart = millis();
+      unsigned long totalDelayMs = stepDelay / 1000;
+      while (millis() - delayStart < totalDelayMs) {
+        checkButton();
+        if (programPaused) {
+          currentPosition += direction ? i : -i;
+          return;
+        }
+        delay(10); // Small delay chunk
+      }
       delayMicroseconds(stepDelay % 1000);  // Remainder in microseconds
     }
     
     digitalWrite(stepPin, LOW);
     
-    // Same delay after LOW pulse
+    // Same delay after LOW pulse with button checking
     if (stepDelay <= 16383) {
       delayMicroseconds(stepDelay);
     } else {
-      delay(stepDelay / 1000);
+      unsigned long delayStart = millis();
+      unsigned long totalDelayMs = stepDelay / 1000;
+      while (millis() - delayStart < totalDelayMs) {
+        checkButton();
+        if (programPaused) {
+          currentPosition += direction ? i : -i;
+          return;
+        }
+        delay(10);
+      }
       delayMicroseconds(stepDelay % 1000);
     }
   }
@@ -359,9 +421,28 @@ void runProgram(uint8_t programId) {
   uint8_t stepCount = loadProgram(programId, steps);
   
   for (int i = 0; i < stepCount; i++) {
+    // Check if we should pause before starting this step
+    if (programPaused) {
+      return; // Exit if paused
+    }
+    
     moveToPosition(steps[i].position);
+    
+    // Check if we got paused during movement
+    if (programPaused) {
+      return; // Exit if paused during movement
+    }
+    
+    // Handle pause time with pause checking
     if (steps[i].pauseMs > 0) {
-      delay(steps[i].pauseMs);
+      unsigned long pauseStart = millis();
+      while (millis() - pauseStart < steps[i].pauseMs) {
+        checkButton();
+        if (programPaused) {
+          return; // Exit if paused during pause
+        }
+        delay(10); // Small delay to prevent tight loop
+      }
     }
   }
 }
@@ -369,29 +450,63 @@ void runProgram(uint8_t programId) {
 void executeCycleMode() {
   static bool goingForward = true;
   
+  if (programPaused) {
+    return; // Don't execute if paused
+  }
+  
   if (goingForward) {
     // Move to end position
     moveToPositionWithSpeed(config.cycleLength, config.cycleSpeed1);
+    if (programPaused) return; // Check if paused during movement
+    
     if (config.cyclePause2 > 0) {
-      delay(config.cyclePause2);
+      unsigned long pauseStart = millis();
+      while (millis() - pauseStart < config.cyclePause2) {
+        checkButton();
+        if (programPaused) return;
+        delay(10);
+      }
     }
     goingForward = false;
   } else {
     // Move back to start position
     moveToPositionWithSpeed(0, config.cycleSpeed2);
+    if (programPaused) return; // Check if paused during movement
+    
     if (config.cyclePause1 > 0) {
-      delay(config.cyclePause1);
+      unsigned long pauseStart = millis();
+      while (millis() - pauseStart < config.cyclePause1) {
+        checkButton();
+        if (programPaused) return;
+        delay(10);
+      }
     }
     goingForward = true;
   }
 }
 
 void executeStoredProgram() {
+  // Don't execute if paused
+  if (programPaused) {
+    delay(100);
+    return;
+  }
+  
   if (config.cycleMode) {
     executeCycleMode();
   } else if (config.programCount > 0) {
-    // Run the first stored program in a loop
-    runProgram(0);
+    // Run the selected program from menu, or first program if no menu selection
+    int programToRun = 0;
+    
+    // If we came from menu selection, use the selected program
+    if (menuItemCount > 0 && currentMenuIndex < menuItemCount) {
+      MenuItem selectedItem = menuItems[currentMenuIndex];
+      if (selectedItem.type == 0) { // It's a program
+        programToRun = selectedItem.id;
+      }
+    }
+    
+    runProgram(programToRun);
     delay(1000); // Brief pause between program cycles
   } else {
     // No program stored, just idle
@@ -415,23 +530,77 @@ void checkButton() {
       
       // Button pressed (LOW because of pull-up)
       if (buttonState == LOW) {
-        programRunning = !programRunning;
+        buttonPressed = true;
+        buttonPressTime = millis();
+        longPressDetected = false;
+      }
+      // Button released
+      else if (buttonPressed) {
+        unsigned long pressDuration = millis() - buttonPressTime;
+        buttonPressed = false;
         
-        if (programRunning) {
-          displayMessage("Started", 500);
-        } else {
-          displayMessage("Stopped", 500);
-        }
-        
-        if (Serial) {
-          if (programRunning) {
-            Serial.write("Button: Program started\r\n> ");
+        // Only process if minimum press time met
+        if (pressDuration >= shortPressThreshold) {
+          if (pressDuration >= longPressThreshold) {
+            // Long press
+            if (programmingMode) {
+              // In programming mode, just toggle like before
+              programRunning = !programRunning;
+              displayMessage(programRunning ? F("Started") : F("Stopped"), 500);
+            } else {
+              // In standalone mode
+              if (inPauseMenu) {
+                selectPauseMenuItem();
+              } else if (programRunning && !inMenuMode) {
+                // Long press while program is running - enter pause menu
+                enterPauseMenu();
+              } else if (inMenuMode) {
+                selectMenuItem();
+              } else {
+                enterMenuMode();
+              }
+            }
           } else {
-            Serial.write("Button: Program stopped\r\n> ");
+            // Short press
+            if (programmingMode) {
+              // In programming mode, just toggle like before
+              programRunning = !programRunning;
+              displayMessage(programRunning ? "Started" : "Stopped", 500);
+            } else {
+              // In standalone mode
+              if (inPauseMenu) {
+                navigatePauseMenu();
+              } else if (inMenuMode) {
+                navigateMenu();
+              } else if (programRunning) {
+                // Short press while running - stop the program
+                programRunning = false;
+                programPaused = false;
+                displayMessage(F("Stopped"), 500);
+              } else {
+                // Not running, enter menu
+                enterMenuMode();
+              }
+            }
           }
-          Serial.flush();
+          
+          // Log button action if WebUSB connected
+          if (Serial) {
+            String action = (pressDuration >= longPressThreshold) ? "Long" : "Short";
+            Serial.write(("Button " + action + " press\r\n> ").c_str());
+            Serial.flush();
+          }
         }
       }
+    }
+  }
+  
+  // Check for long press while button is still held
+  if (buttonPressed && !longPressDetected && (millis() - buttonPressTime) >= longPressThreshold) {
+    longPressDetected = true;
+    // Visual feedback for long press detection
+    if (!programmingMode && programRunning) {
+      displayMessage(F("PAUSE"), 200);
     }
   }
   
@@ -444,31 +613,41 @@ void updateDisplay() {
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(0, 0);
 
-  if (programmingMode) {
+  if (inPauseMenu && !programmingMode) {
+    // Pause menu display
+    displayPauseMenu();
+  } else if (inMenuMode && !programmingMode) {
+    // Main menu display
+    displayMenu();
+  } else if (programmingMode) {
     // Programming mode display
-    display.print("PROG ");
+    display.print(F("PROG "));
     if (config.cycleMode) {
-      display.print("CYCLE L:");
+      display.print(F("CYCLE L:"));
       display.print(config.cycleLength);
     } else {
-      display.print("STEPS P:");
+      display.print(F("STEPS P:"));
       display.print(config.programCount);
     }
   } else {
     // Standalone mode display
     if (programRunning) {
-      display.print("RUN ");
+      if (programPaused) {
+        display.print(F("PAUSE "));
+      } else {
+        display.print(F("RUN "));
+      }
     } else {
-      display.print("STOP ");
+      display.print(F("STOP "));
     }
     
     if (config.cycleMode) {
-      display.print("CYCLE ");
+      display.print(F("CYCLE "));
       display.print(currentPosition);
-      display.print("/");
+      display.print(F("/"));
       display.print(config.cycleLength);
     } else {
-      display.print("POS:");
+      display.print(F("POS:"));
       display.print(currentPosition);
     }
   }
@@ -499,83 +678,190 @@ void displayMessage(String message, int duration = 1000) {
 
 void playBootAnimation() {
   display.clearDisplay();
-  
-  // Draw camera sliding animation
-  for (int x = -16; x <= SCREEN_WIDTH; x += 3) {
-    display.clearDisplay();
-    
-    // Draw rail/track line
-    display.drawLine(0, 12, SCREEN_WIDTH-1, 12, SSD1306_WHITE);
-    display.drawLine(0, 13, SCREEN_WIDTH-1, 13, SSD1306_WHITE);
-    
-    // Draw cute camera icon sliding on the rail
-    if (x >= 0 && x < SCREEN_WIDTH - 16) {
-      // Camera body (rectangle with rounded corners effect)
-      display.drawRect(x, 6, 14, 8, SSD1306_WHITE);
-      display.drawRect(x+1, 7, 12, 6, SSD1306_WHITE);
-      
-      // Camera lens
-      display.drawCircle(x+7, 10, 2, SSD1306_WHITE);
-      display.drawPixel(x+7, 10, SSD1306_WHITE);
-      
-      // Camera viewfinder
-      display.drawRect(x+2, 6, 3, 2, SSD1306_WHITE);
-      
-      // Flash
-      display.drawPixel(x+11, 7, SSD1306_WHITE);
-      display.drawPixel(x+12, 7, SSD1306_WHITE);
-    }
-    
-    // Add motion blur/trail effect
-    if (x > 5) {
-      for (int trail = 1; trail <= 3; trail++) {
-        int trailX = x - trail * 4;
-        if (trailX >= 0 && trailX < SCREEN_WIDTH - 16) {
-          // Fading trail dots
-          display.drawPixel(trailX + 7, 10, SSD1306_WHITE);
-          if (trail <= 2) {
-            display.drawPixel(trailX + 6, 10, SSD1306_WHITE);
-            display.drawPixel(trailX + 8, 10, SSD1306_WHITE);
-          }
-        }
-      }
-    }
-    
-    display.display();
-    delay(80);
-  }
-  
-  // Final flourish - camera "flashes" and shows startup message
-  for (int flash = 0; flash < 3; flash++) {
-    display.clearDisplay();
-    
-    // Draw final rail
-    display.drawLine(0, 12, SCREEN_WIDTH-1, 12, SSD1306_WHITE);
-    display.drawLine(0, 13, SCREEN_WIDTH-1, 13, SSD1306_WHITE);
-    
-    if (flash % 2 == 0) {
-      // Flash effect - invert screen briefly
-      display.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, SSD1306_WHITE);
-      display.setTextColor(SSD1306_BLACK);
-    } else {
-      display.setTextColor(SSD1306_WHITE);
-    }
-    
-    // Center the startup text
-    display.setTextSize(1);
-    display.setCursor(7, 4);
-    display.print("SLIDER READY!");
-    
-    display.display();
-    delay(200);
-  }
-  
-  // Clear and show ready message
-  display.clearDisplay();
-  display.setTextColor(SSD1306_WHITE);
   display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
   display.setCursor(28, 4);
-  display.print("READY ^.^");
+  display.print(F("READY ^.^"));
   display.display();
   delay(1000);
+}
+
+// Menu system functions
+void buildMenuItems() {
+  menuItemCount = 0;
+  
+  // Add stored programs
+  for (int i = 0; i < config.programCount && i < MAX_PROGRAMS; i++) {
+    menuItems[menuItemCount].name = "PGM" + String(i + 1);
+    menuItems[menuItemCount].type = 0; // program type
+    menuItems[menuItemCount].id = i;
+    menuItemCount++;
+  }
+  
+  // Add cycle mode if configured
+  if (config.cycleMode) {
+    menuItems[menuItemCount].name = "CYCLE";
+    menuItems[menuItemCount].type = 1; // cycle type
+    menuItems[menuItemCount].id = 0;
+    menuItemCount++;
+  }
+  
+  // Add settings/info item
+  menuItems[menuItemCount].name = "INFO";
+  menuItems[menuItemCount].type = 2; // settings type
+  menuItems[menuItemCount].id = 0;
+  menuItemCount++;
+  
+  // Reset menu index if out of bounds
+  if (currentMenuIndex >= menuItemCount) {
+    currentMenuIndex = 0;
+  }
+}
+
+void enterMenuMode() {
+  inMenuMode = true;
+  currentMenuIndex = 0;
+  buildMenuItems(); // Refresh menu items
+  displayMessage(F("MENU"), 300);
+  updateDisplay();
+}
+
+void exitMenuMode() {
+  inMenuMode = false;
+  updateDisplay();
+}
+
+void navigateMenu() {
+  if (menuItemCount > 0) {
+    currentMenuIndex = (currentMenuIndex + 1) % menuItemCount;
+    updateDisplay();
+  }
+}
+
+void selectMenuItem() {
+  if (menuItemCount == 0) {
+    exitMenuMode();
+    return;
+  }
+  
+  MenuItem selectedItem = menuItems[currentMenuIndex];
+  
+  switch (selectedItem.type) {
+    case 0: // Program
+      exitMenuMode();
+      displayMessage(F("RUN"), 300);
+      programRunning = true;
+      programPaused = false; // Reset pause state
+      // Set the selected program as the active one
+      // We'll modify executeStoredProgram to use currentMenuIndex
+      break;
+      
+    case 1: // Cycle
+      exitMenuMode();
+      displayMessage(F("RUN CYCLE"), 300);
+      programRunning = true;
+      programPaused = false; // Reset pause state
+      break;
+      
+    case 2: // Info/Settings
+      // Show system info
+      display.clearDisplay();
+      display.setTextSize(1);
+      display.setTextColor(SSD1306_WHITE);
+      display.setCursor(0, 0);
+      display.print("PGM:");
+      display.print(config.programCount);
+      display.print(" CYC:");
+      display.print(config.cycleMode ? "Y" : "N");
+      display.setCursor(0, 8);
+      display.print("POS:");
+      display.print(currentPosition);
+      display.display();
+      delay(2000);
+      exitMenuMode();
+      break;
+  }
+}
+
+void displayMenu() {
+  if (menuItemCount == 0) {
+    display.setCursor(0, 4);
+    display.print(F("NO PROGRAMS"));
+    return;
+  }
+  
+  // Show current menu item with selection indicator
+  display.setCursor(0, 0);
+  display.print(F(">"));
+  display.print(menuItems[currentMenuIndex].name);
+  
+  // Show menu position indicator
+  display.setCursor(0, 8);
+  display.print(String(currentMenuIndex + 1));
+  display.print(F("/"));
+  display.print(menuItemCount);
+  
+  // Show navigation hints
+  display.setCursor(50, 8);
+  display.print(F("S:> L:OK"));
+}
+
+// Pause menu functions
+void enterPauseMenu() {
+  inPauseMenu = true;
+  pauseMenuIndex = 0;
+  programPaused = true;
+  displayMessage(F("PAUSED"), 300);
+  updateDisplay();
+}
+
+void exitPauseMenu() {
+  inPauseMenu = false;
+  updateDisplay();
+}
+
+void navigatePauseMenu() {
+  pauseMenuIndex = (pauseMenuIndex + 1) % pauseMenuItems;
+  updateDisplay();
+}
+
+void selectPauseMenuItem() {
+  switch (pauseMenuIndex) {
+    case 0: // RESUME
+      programPaused = false;
+      exitPauseMenu();
+      displayMessage(F("RESUMED"), 300);
+      break;
+      
+    case 1: // ABORT
+      programRunning = false;
+      programPaused = false;
+      exitPauseMenu();
+      enterMenuMode(); // Return to main menu
+      displayMessage(F("ABORTED"), 300);
+      break;
+  }
+}
+
+void displayPauseMenu() {
+  display.setCursor(0, 0);
+  display.print(F("PAUSED"));
+  
+  // Show current pause menu item with selection indicator
+  display.setCursor(0, 8);
+  display.print(F(">"));
+  
+  switch (pauseMenuIndex) {
+    case 0:
+      display.print(F("RESUME"));
+      break;
+    case 1:
+      display.print(F("ABORT"));
+      break;
+  }
+  
+  // Show menu position
+  display.setCursor(60, 8);
+  display.print(String(pauseMenuIndex + 1));
+  display.print(F("/2"));
 }

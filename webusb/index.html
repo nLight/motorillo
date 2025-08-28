@@ -42,6 +42,17 @@
                         <input type="number" id="acceleration" value="50" min="0" max="200">
                         <span class="help">Steps for smooth start/stop</span>
                     </div>
+                    <div class="form-group">
+                        <label for="microstepping">Microstepping Mode:</label>
+                        <select id="microstepping">
+                            <option value="1">1 - Full Step (Max Torque)</option>
+                            <option value="2">1/2 - Half Step</option>
+                            <option value="4">1/4 - Quarter Step</option>
+                            <option value="8">1/8 - Eighth Step (Quieter)</option>
+                            <option value="16">1/16 - Sixteenth Step (Smoothest)</option>
+                        </select>
+                        <span class="help">Higher values = smoother/quieter, lower values = more torque</span>
+                    </div>
                     <button type="submit">Save Configuration</button>
                 </form>
             </div>

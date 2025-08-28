@@ -188,8 +188,9 @@ class SliderController {
     const totalSteps = document.getElementById("totalSteps").value;
     const speed = document.getElementById("defaultSpeed").value;
     const acceleration = document.getElementById("acceleration").value;
+    const microstepping = document.getElementById("microstepping").value;
 
-    const command = `CFG,${totalSteps},${speed},${acceleration}`;
+    const command = `CFG,${totalSteps},${speed},${acceleration},${microstepping}`;
     this.sendCommand(command);
   }
 

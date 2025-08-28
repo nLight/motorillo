@@ -15,10 +15,22 @@
 WebUSB WebUSBSerial(1 /* https:// */, "localhost:8000");
 
 #define Serial WebUSBSerial
-// Define pin connections
-const int dirPin = 10;
-const int stepPin = 16;
-const int buttonPin = 9;  // Start/Stop button
+
+// MS1	MS2	MS3	Microstep Resolution
+// Low	Low	Low	Full step
+// High	Low	Low	Half step
+// Low	High	Low	Quarter step
+// High	High	Low	Eighth step
+// High	High	High	Sixteenth step
+const int ms1Pin = 4;
+const int ms2Pin = 5;
+const int ms3Pin = 6;
+
+const int stepPin = 7;
+const int dirPin = 8;
+const int buttonPin = 9;
+
+
 
 const int stepsPerRevolution = 200;
 
@@ -47,7 +59,7 @@ bool programPaused = false;
 
 // Menu items structure
 struct MenuItem {
-  String name;
+  char name[9];  // 8 characters + null terminator
   int type; // 0=program, 1=cycle, 2=settings
   int id;   // program ID or setting ID
 };
@@ -78,7 +90,8 @@ struct SliderConfig {
   uint16_t speed;           // Delay between steps (microseconds)
   uint16_t acceleration;    // Acceleration steps
   uint8_t programCount;     // Number of stored programs
-  uint8_t reserved[9];      // Reserved for future use (was cycle fields)
+  uint8_t microstepping;    // Microstepping mode (1, 2, 4, 8, 16)
+  uint8_t reserved[8];      // Reserved for future use
 };
 
 // Movement program structure
@@ -106,7 +119,7 @@ bool programmingMode = false;
 
 // Function declarations
 void updateDisplay();
-void displayMessage(String message, int duration = 1000);
+void displayMessage(const __FlashStringHelper* message, int duration = 1000);
 void playBootAnimation();
 void buildMenuItems();
 void enterMenuMode();
@@ -130,12 +143,51 @@ void loadConfig() {
     config.speed = 1000;
     config.acceleration = 50;
     config.programCount = 0;
+    config.microstepping = 1; // Full step by default
     saveConfig();
   }
+  // Set microstepping pins based on stored config
+  setMicrostepping(config.microstepping);
 }
 
 void saveConfig() {
   EEPROM.put(CONFIG_ADDR, config);
+}
+
+// Set microstepping mode using MS pins
+void setMicrostepping(uint8_t mode) {
+  switch(mode) {
+    case 1:   // Full step: L,L,L
+      digitalWrite(ms1Pin, LOW);
+      digitalWrite(ms2Pin, LOW);
+      digitalWrite(ms3Pin, LOW);
+      break;
+    case 2:   // Half step: H,L,L
+      digitalWrite(ms1Pin, HIGH);
+      digitalWrite(ms2Pin, LOW);
+      digitalWrite(ms3Pin, LOW);
+      break;
+    case 4:   // Quarter step: L,H,L
+      digitalWrite(ms1Pin, LOW);
+      digitalWrite(ms2Pin, HIGH);
+      digitalWrite(ms3Pin, LOW);
+      break;
+    case 8:   // Eighth step: H,H,L
+      digitalWrite(ms1Pin, HIGH);
+      digitalWrite(ms2Pin, HIGH);
+      digitalWrite(ms3Pin, LOW);
+      break;
+    case 16:  // Sixteenth step: H,H,H
+      digitalWrite(ms1Pin, HIGH);
+      digitalWrite(ms2Pin, HIGH);
+      digitalWrite(ms3Pin, HIGH);
+      break;
+    default:  // Default to full step for invalid values
+      digitalWrite(ms1Pin, LOW);
+      digitalWrite(ms2Pin, LOW);
+      digitalWrite(ms3Pin, LOW);
+      break;
+  }
 }
 
 void saveProgram(uint8_t programId, MovementStep* steps, uint8_t stepCount) {
@@ -197,6 +249,11 @@ void setup() {
   
   // Configure button pin with internal pull-up
   pinMode(buttonPin, INPUT_PULLUP);
+  
+  // Configure microstepping pins as outputs
+  pinMode(ms1Pin, OUTPUT);
+  pinMode(ms2Pin, OUTPUT);
+  pinMode(ms3Pin, OUTPUT);
 
   // Initialize I2C and display
   Wire.begin();
@@ -278,11 +335,23 @@ void processCommand(String command) {
     int firstComma = command.indexOf(',');
     int secondComma = command.indexOf(',', firstComma + 1);
     int thirdComma = command.indexOf(',', secondComma + 1);
+    int fourthComma = command.indexOf(',', thirdComma + 1);
     
     if (firstComma > 0 && secondComma > 0 && thirdComma > 0) {
       config.totalSteps = command.substring(firstComma + 1, secondComma).toInt();
       config.speed = command.substring(secondComma + 1, thirdComma).toInt();
-      config.acceleration = command.substring(thirdComma + 1).toInt();
+      config.acceleration = command.substring(thirdComma + 1, fourthComma > 0 ? fourthComma : command.length()).toInt();
+      
+      // Optional microstepping parameter
+      if (fourthComma > 0) {
+        uint8_t newMicrostepping = command.substring(fourthComma + 1).toInt();
+        if (newMicrostepping == 1 || newMicrostepping == 2 || newMicrostepping == 4 || 
+            newMicrostepping == 8 || newMicrostepping == 16) {
+          config.microstepping = newMicrostepping;
+          setMicrostepping(config.microstepping);
+        }
+      }
+      
       saveConfig();
       displayMessage(F("Config OK"));
     }
@@ -362,27 +431,32 @@ void moveToPositionWithSpeed(long targetPosition, uint16_t speed) {
   long stepsToMove = abs(targetPosition - currentPosition);
   bool direction = targetPosition > currentPosition;
   
+  // Adjust for microstepping - need more pulses but faster timing to maintain same speed
+  long actualStepsToMove = stepsToMove * config.microstepping;
+  uint16_t adjustedSpeed = speed / config.microstepping;
+  
   digitalWrite(dirPin, direction ? HIGH : LOW);
   
   // Apply acceleration/deceleration
-  for (long i = 0; i < stepsToMove; i++) {
+  for (long i = 0; i < actualStepsToMove; i++) {
     // Check for pause request during movement
     checkButton();
     if (programPaused) {
-      // Update current position to where we actually are
-      currentPosition += direction ? i : -i;
+      // Update current position to where we actually are (convert back from microsteps)
+      currentPosition += direction ? (i / config.microstepping) : -(i / config.microstepping);
       return; // Exit movement if paused
     }
     
-    uint16_t stepDelay = speed;
+    uint16_t stepDelay = adjustedSpeed;
     
-    // Acceleration phase
-    if (i < config.acceleration) {
-      stepDelay += (config.acceleration - i) * 10;
+    // Acceleration phase (adjusted for microstepping)
+    long accelSteps = config.acceleration * config.microstepping;
+    if (i < accelSteps) {
+      stepDelay += ((accelSteps - i) * 10) / config.microstepping;
     }
-    // Deceleration phase
-    else if (i > stepsToMove - config.acceleration) {
-      stepDelay += (config.acceleration - (stepsToMove - i)) * 10;
+    // Deceleration phase (adjusted for microstepping)  
+    else if (i > actualStepsToMove - accelSteps) {
+      stepDelay += ((accelSteps - (actualStepsToMove - i)) * 10) / config.microstepping;
     }
     
     digitalWrite(stepPin, HIGH);
@@ -397,7 +471,7 @@ void moveToPositionWithSpeed(long targetPosition, uint16_t speed) {
       while (millis() - delayStart < totalDelayMs) {
         checkButton();
         if (programPaused) {
-          currentPosition += direction ? i : -i;
+          currentPosition += direction ? (i / config.microstepping) : -(i / config.microstepping);
           return;
         }
         delay(10); // Small delay chunk
@@ -416,7 +490,7 @@ void moveToPositionWithSpeed(long targetPosition, uint16_t speed) {
       while (millis() - delayStart < totalDelayMs) {
         checkButton();
         if (programPaused) {
-          currentPosition += direction ? i : -i;
+          currentPosition += direction ? (i / config.microstepping) : -(i / config.microstepping);
           return;
         }
         delay(10);
@@ -594,8 +668,9 @@ void updateDisplay() {
   display.display();
 }
 
-void displayMessage(String message, int duration = 1000) {
-  Serial.write((message + "\r\n> ").c_str());
+void displayMessage(const __FlashStringHelper* message, int duration = 1000) {
+  Serial.write(message);
+  Serial.write(F("\r\n> "));
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
@@ -686,16 +761,14 @@ void buildMenuItems() {
   
   // Add stored programs
   for (int i = 0; i < config.programCount && i < MAX_PROGRAMS; i++) {
-    char programName[9]; // 8 chars + null terminator
-    loadProgramName(i, programName);
-    menuItems[menuItemCount].name = programName; // Direct assignment instead of String()
+    loadProgramName(i, menuItems[menuItemCount].name); // Load directly into char array
     menuItems[menuItemCount].type = 0;
     menuItems[menuItemCount].id = i;
     menuItemCount++;
   }
   
   // Add settings/info item
-  menuItems[menuItemCount].name = F("INFO");
+  strcpy(menuItems[menuItemCount].name, "INFO");
   menuItems[menuItemCount].type = 2;
   menuItems[menuItemCount].id = 0;
   menuItemCount++;
@@ -774,7 +847,7 @@ void displayMenu() {
   display.print(menuItems[currentMenuIndex].name);
   
   display.setCursor(0, 8);
-  display.print(String(currentMenuIndex + 1));
+  display.print(currentMenuIndex + 1);
   display.print(F("/"));
   display.print(menuItemCount);
   
@@ -835,6 +908,6 @@ void displayPauseMenu() {
   }
   
   display.setCursor(60, 8);
-  display.print(String(pauseMenuIndex + 1));
+  display.print(pauseMenuIndex + 1);
   display.print(F("/2"));
 }

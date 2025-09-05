@@ -12,7 +12,8 @@ const int STEP_PIN = 7;
 const int DIR_PIN = 8;
 
 // Microstepping modes
-enum MicrostepMode {
+enum MicrostepMode
+{
   FULL_STEP = 1,
   HALF_STEP = 2,
   QUARTER_STEP = 4,
@@ -28,9 +29,7 @@ extern int currentMenuIndex;
 // Function declarations
 void setupMotorPins();
 void setMicrostepping(uint8_t mode);
-uint32_t convertSpeedToMicroseconds(uint32_t speedValue, uint8_t speedUnit);
-void moveToPosition(long targetPosition);
-void moveToPositionWithSpeed(long targetPosition, uint32_t speed);
+void moveToPositionWithSpeed(long targetPosition, uint32_t speedMs);
 void runProgram(uint8_t programId);
 void runLoopProgram(uint8_t programId);
 void executeStoredProgram();

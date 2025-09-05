@@ -8,8 +8,7 @@
 struct SliderConfig {
   uint16_t magic;            // Magic number for validation
   uint16_t totalSteps;       // Total steps for full slider travel
-  uint32_t speed;            // Default speed value
-  uint8_t speedUnit;         // 0=microseconds, 1=milliseconds
+  uint32_t speed;            // Default speed value (milliseconds)
   uint8_t acceleration;      // Acceleration steps
   uint8_t programCount;      // Number of stored programs
   uint8_t microstepping;     // Microstepping mode
@@ -26,14 +25,12 @@ struct LoopProgram {
   uint16_t steps;            // Number of steps to move forward/backward
   uint32_t delayMs;          // Delay between steps in milliseconds
   uint8_t cycles;            // Number of forward/backward cycles
-  uint8_t speedUnit;         // 0=microseconds, 1=milliseconds
 };
 
 // Complex program structure (existing format)
 struct MovementStep {
   uint16_t position;          // Target position in steps
-  uint32_t speed;             // Speed value (microseconds or milliseconds)
-  uint8_t speedUnit;          // 0=microseconds, 1=milliseconds
+  uint32_t speed;             // Speed value (milliseconds)
   uint16_t pauseMs;           // Pause after reaching position (ms)
 };
 
@@ -49,7 +46,7 @@ extern SliderConfig config;
 
 // Configuration constants
 const uint16_t CONFIG_MAGIC = 0xA5C3;
-const int MAX_PROGRAMS = 10;
+const int MAX_PROGRAMS = 5;  // Reduced from 10 to fit in 1024-byte EEPROM
 const int MAX_STEPS_PER_PROGRAM = 10; // For complex programs
 const int CONFIG_ADDR = 0;
 
@@ -66,7 +63,7 @@ void loadConfig();
 void saveConfig();
 
 // New efficient program functions
-void saveLoopProgram(uint8_t programId, const char* name, uint16_t steps, uint32_t delayMs, uint8_t cycles, uint8_t speedUnit);
+void saveLoopProgram(uint8_t programId, const char* name, LoopProgram program);
 bool loadLoopProgram(uint8_t programId, LoopProgram* program);
 void saveComplexProgram(uint8_t programId, const char* name, MovementStep* steps, uint8_t stepCount);
 uint8_t loadComplexProgram(uint8_t programId, MovementStep* steps);

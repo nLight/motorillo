@@ -2,6 +2,23 @@ class SliderController {
   constructor() {
     this.port = null;
     this.connected = false;
+
+    // Command codes for memory efficiency
+    this.CMD_CONFIG = 1;
+    this.CMD_POS = 2;
+    this.CMD_RUN = 3;
+    this.CMD_START = 4;
+    this.CMD_STOP = 5;
+    this.CMD_HOME = 6;
+    this.CMD_GET_CONFIG = 7;
+    this.CMD_SETHOME = 8;
+    this.CMD_LOOP_PROGRAM = 9;
+    this.CMD_PROGRAM = 10;
+    this.CMD_GET_LOOP_PROGRAM = 11; // Request loop program data
+    this.CMD_GET_PROGRAM = 12; // Request complex program data
+    this.CMD_GET_ALL_DATA = 13; // Request all EEPROM data
+    this.CMD_DEBUG_INFO = 14; // Request debug information
+
     this.init();
   }
 
@@ -43,16 +60,16 @@ class SliderController {
     // Manual controls
     document
       .getElementById("startBtn")
-      .addEventListener("click", () => this.sendCommand("START"));
+      .addEventListener("click", () => this.sendCommand(this.CMD_START));
     document
       .getElementById("stopBtn")
-      .addEventListener("click", () => this.sendCommand("STOP"));
+      .addEventListener("click", () => this.sendCommand(this.CMD_STOP));
     document
       .getElementById("setHomeBtn")
-      .addEventListener("click", () => this.sendCommand("SETHOME"));
+      .addEventListener("click", () => this.sendCommand(this.CMD_SETHOME));
     document
       .getElementById("homeBtn")
-      .addEventListener("click", () => this.sendCommand("HOME"));
+      .addEventListener("click", () => this.sendCommand(this.CMD_HOME));
     document
       .getElementById("moveBtn")
       .addEventListener("click", () => this.handleMove());
@@ -70,6 +87,9 @@ class SliderController {
     document
       .getElementById("loadProgram")
       .addEventListener("click", () => this.loadProgram());
+    document
+      .getElementById("loadAllFromEEPROM")
+      .addEventListener("click", () => this.requestAllDataFromEEPROM());
     document
       .getElementById("clearSteps")
       .addEventListener("click", () => this.clearSteps());
@@ -141,6 +161,10 @@ class SliderController {
       // Automatically load configuration from Arduino
       setTimeout(() => {
         this.loadConfiguration();
+        // Also load all EEPROM data in bulk
+        setTimeout(() => {
+          this.requestAllDataFromEEPROM();
+        }, 500);
       }, 1000); // Wait 1 second for Arduino to be ready
     } catch (error) {
       this.log(`Connection failed: ${error.message}`);
@@ -163,7 +187,7 @@ class SliderController {
 
   loadConfiguration() {
     if (this.connected) {
-      this.sendCommand("GET_CONFIG");
+      this.sendCommand(this.CMD_GET_CONFIG);
       this.log("Loading configuration from Arduino...");
 
       // Show loading indicator
@@ -185,6 +209,7 @@ class SliderController {
   setupDataListener() {
     // WebUSB handles data reception through the onReceive callback
     this.port.onReceive = (data) => {
+      this.log("Data received:", data);
       const decoder = new TextDecoder();
       const text = decoder.decode(data);
       const lines = text.split("\n");
@@ -202,24 +227,28 @@ class SliderController {
   }
 
   handleIncomingData(data) {
+    // Check if this is binary data (first byte < 32, not printable ASCII)
+    if (data.length > 0 && data.charCodeAt(0) < 32) {
+      this.handleBinaryData(data);
+      return;
+    }
+
     this.log(`Received: ${data}`);
 
     // Handle configuration data
     if (data.startsWith("CONFIG,")) {
       const parts = data.split(",");
-      if (parts.length >= 6) {
+      if (parts.length >= 4) {
         const totalSteps = parts[1];
         const speed = parts[2];
         const acceleration = parts[3];
         const microstepping = parts[4];
-        const speedUnit = parts[5];
 
         // Populate form fields
         document.getElementById("totalSteps").value = totalSteps;
         document.getElementById("defaultSpeed").value = speed;
         document.getElementById("acceleration").value = acceleration;
         document.getElementById("microstepping").value = microstepping;
-        document.getElementById("speedUnit").value = speedUnit;
 
         this.log(
           `Configuration loaded: ${totalSteps} steps, ${speed} speed, ${acceleration} accel, ${microstepping}x microstepping`
@@ -240,24 +269,266 @@ class SliderController {
       data.includes("RUN command received") ||
       data.includes("Program type") ||
       data.includes("Running loop program") ||
-      data.includes("ERROR")
+      data.includes("ERROR") ||
+      data.includes("WARNING") ||
+      data.includes("Total time per direction")
     ) {
       this.log(`[Arduino] ${data}`);
     }
   }
 
-  async sendCommand(command) {
+  handleBinaryData(data) {
+    if (data.length < 2) return;
+
+    const bytes = new Uint8Array(data.length);
+    for (let i = 0; i < data.length; i++) {
+      bytes[i] = data.charCodeAt(i);
+    }
+
+    // Check if this is bulk data (much longer than individual programs)
+    if (data.length > 50) {
+      this.handleBulkData(bytes);
+      return;
+    }
+
+    const programId = bytes[0];
+    this.log(`Received binary data for program ${programId}`);
+
+    // Check if this is loop program data (16 bytes expected for loop programs)
+    if (data.length === 17) {
+      // 16 bytes + newline
+      this.handleLoopProgramBinary(bytes);
+    }
+    // Check if this is complex program data (variable length)
+    else if (data.length >= 11) {
+      // minimum: programId(1) + name(8) + stepCount(1) + at least 1 step(8)
+      this.handleComplexProgramBinary(bytes);
+    }
+  }
+
+  handleLoopProgramBinary(bytes) {
+    const programId = bytes[0];
+
+    // Extract name (bytes 1-8)
+    let name = "";
+    for (let i = 1; i <= 8; i++) {
+      if (bytes[i] !== 0 && bytes[i] !== 32) {
+        name += String.fromCharCode(bytes[i]);
+      }
+    }
+    name = name.trim() || `PGM${programId + 1}`;
+
+    // Extract loop data (bytes 9-15)
+    const view = new DataView(bytes.buffer, 9);
+    const steps = view.getUint16(0, true);
+    const delayMs = view.getUint32(2, true);
+    const cycles = bytes[15];
+
+    // Store in local storage
+    this.loopPrograms[programId] = { steps, delay: delayMs, cycles };
+    this.programNames[programId] = name;
+    this.saveProgramNames();
+
+    // Load into UI
+    this.switchProgramType("loop");
+    document.getElementById("programName").value = name;
+    document.getElementById("loopSteps").value = steps;
+    document.getElementById("loopDelay").value = delayMs;
+    document.getElementById("loopCycles").value = cycles;
+
+    this.log(
+      `Loaded Loop Program "${name}" from EEPROM (slot ${programId + 1})`
+    );
+  }
+
+  handleComplexProgramBinary(bytes) {
+    const programId = bytes[0];
+
+    // Extract name (bytes 1-8)
+    let name = "";
+    for (let i = 1; i <= 8; i++) {
+      if (bytes[i] !== 0 && bytes[i] !== 32) {
+        name += String.fromCharCode(bytes[i]);
+      }
+    }
+    name = name.trim() || `PGM${programId + 1}`;
+
+    const stepCount = bytes[9];
+
+    // Extract steps (starting from byte 10)
+    const steps = [];
+    for (let i = 0; i < stepCount; i++) {
+      const offset = 10 + i * 8;
+      const view = new DataView(bytes.buffer, offset);
+      const position = view.getUint16(0, true);
+      const speed = view.getUint32(2, true);
+      const pause = view.getUint16(6, true);
+      steps.push({ position, speed, pause });
+    }
+
+    // Store in local storage
+    this.programs[programId] = steps;
+    this.programNames[programId] = name;
+    this.saveProgramNames();
+
+    // Load into UI
+    this.switchProgramType("complex");
+    document.getElementById("programName").value = name;
+
+    // Clear existing steps
+    this.clearSteps();
+
+    // Load steps
+    steps.forEach((step, index) => {
+      this.addProgramStep();
+      const stepDiv = document.querySelectorAll(".program-step")[index];
+      stepDiv.querySelector(".step-position").value = step.position;
+      stepDiv.querySelector(".step-speed").value = step.speed;
+      stepDiv.querySelector(".step-pause").value = step.pause;
+    });
+
+    this.log(
+      `Loaded Complex Program "${name}" from EEPROM (slot ${
+        programId + 1
+      }, ${stepCount} steps)`
+    );
+  }
+
+  handleBulkData(bytes) {
+    this.log("Received bulk EEPROM data");
+
+    let offset = 0;
+
+    // Parse config (8 bytes: totalSteps(2), speed(4), acceleration(1), microstepping(1))
+    const view = new DataView(bytes.buffer, offset);
+    const totalSteps = view.getUint16(0, true);
+    const speed = view.getUint32(2, true);
+    const acceleration = bytes[offset + 6];
+    const microstepping = bytes[offset + 7];
+
+    // Update config UI
+    document.getElementById("totalSteps").value = totalSteps;
+    document.getElementById("speed").value = speed;
+    document.getElementById("acceleration").value = acceleration;
+    document.getElementById("microstepping").value = microstepping;
+
+    // Store config in localStorage
+    localStorage.setItem(
+      "sliderConfig",
+      JSON.stringify({
+        totalSteps,
+        speed,
+        acceleration,
+        microstepping,
+      })
+    );
+
+    offset += 8;
+
+    // Parse program count
+    const programCount = bytes[offset];
+    offset += 1;
+
+    this.log(`Loading ${programCount} programs from EEPROM`);
+
+    // Clear existing programs
+    this.programs = {};
+    this.loopPrograms = {};
+    this.programNames = {};
+
+    // Parse each program
+    for (let i = 0; i < programCount; i++) {
+      const programId = bytes[offset];
+      const programType = bytes[offset + 1];
+
+      // Extract name (bytes offset+2 to offset+9)
+      let name = "";
+      for (let j = 0; j < 8; j++) {
+        const charCode = bytes[offset + 2 + j];
+        if (charCode !== 0 && charCode !== 32) {
+          name += String.fromCharCode(charCode);
+        }
+      }
+      name = name.trim() || `PGM${programId + 1}`;
+
+      this.programNames[programId] = name;
+
+      offset += 10; // programId(1) + type(1) + name(8)
+
+      if (programType === 0) {
+        // Loop program
+        const loopView = new DataView(bytes.buffer, offset);
+        const steps = loopView.getUint16(0, true);
+        const delayMs = loopView.getUint32(2, true);
+        const cycles = bytes[offset + 6];
+
+        this.loopPrograms[programId] = { steps, delay: delayMs, cycles };
+        offset += 7; // steps(2) + delayMs(4) + cycles(1)
+
+        this.log(`Loaded Loop Program "${name}" (slot ${programId + 1})`);
+      } else if (programType === 1) {
+        // Complex program
+        const stepCount = bytes[offset];
+        offset += 1;
+
+        const steps = [];
+        for (let j = 0; j < stepCount; j++) {
+          const stepView = new DataView(bytes.buffer, offset);
+          const position = stepView.getUint16(0, true);
+          const speed = stepView.getUint32(2, true);
+          const pause = stepView.getUint16(6, true);
+          steps.push({ position, speed, pause });
+          offset += 8;
+        }
+
+        this.programs[programId] = steps;
+        this.log(
+          `Loaded Complex Program "${name}" (slot ${
+            programId + 1
+          }, ${stepCount} steps)`
+        );
+      }
+    }
+
+    // Save to localStorage
+    this.saveProgramNames();
+    localStorage.setItem("sliderPrograms", JSON.stringify(this.programs));
+    localStorage.setItem(
+      "sliderLoopPrograms",
+      JSON.stringify(this.loopPrograms)
+    );
+
+    this.log("Bulk EEPROM loading complete");
+  }
+
+  async sendCommand(command, binaryData = null) {
     if (!this.connected || !this.port) {
       this.log("Not connected to slider");
       return false;
     }
 
     try {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(command + "\n");
+      let data;
+
+      if (binaryData) {
+        // Binary command: command code + binary data
+        const buffer = new Uint8Array(1 + binaryData.length);
+        buffer[0] = command;
+        buffer.set(binaryData, 1);
+        data = buffer;
+        this.log(`Sent binary: CMD=${command}, ${binaryData.length} bytes`);
+      } else if (typeof command === "number") {
+        // Simple command without data
+        data = new Uint8Array([command]);
+        this.log(`Sent: CMD=${command}`);
+      } else {
+        // Legacy string command
+        const encoder = new TextEncoder();
+        data = encoder.encode(command + "\n");
+        this.log(`Sent: ${command}`);
+      }
 
       await this.port.send(data);
-      this.log(`Sent: ${command}`);
       return true;
     } catch (error) {
       this.log("Send error: " + error.message);
@@ -281,20 +552,35 @@ class SliderController {
 
   handleConfigSubmit(e) {
     e.preventDefault();
-    const totalSteps = document.getElementById("totalSteps").value;
-    const speed = document.getElementById("defaultSpeed").value;
-    const speedUnit = document.getElementById("speedUnit").value;
-    const acceleration = document.getElementById("acceleration").value;
-    const microstepping = document.getElementById("microstepping").value;
+    const totalSteps = parseInt(document.getElementById("totalSteps").value);
+    const speed = parseInt(document.getElementById("defaultSpeed").value);
+    const acceleration = parseInt(
+      document.getElementById("acceleration").value
+    );
+    const microstepping = parseInt(
+      document.getElementById("microstepping").value
+    );
 
-    const command = `CFG,${totalSteps},${speed},${acceleration},${microstepping},${speedUnit}`;
-    this.sendCommand(command);
+    // Binary format: totalSteps(2), speed(4), acceleration(1), microstepping(1)
+    const buffer = new ArrayBuffer(8);
+    const view = new DataView(buffer);
+    view.setUint16(0, totalSteps, true); // little-endian
+    view.setUint32(2, speed, true);
+    view.setUint8(6, acceleration);
+    view.setUint8(7, microstepping);
+
+    this.sendCommand(this.CMD_CONFIG, new Uint8Array(buffer));
   }
 
   handleMove() {
-    const position = document.getElementById("targetPosition").value;
-    // Use a simple position command since Arduino doesn't have MOVE
-    this.sendCommand(`POS,${position}`);
+    const position = parseInt(document.getElementById("targetPosition").value);
+
+    // Binary format: position(2)
+    const buffer = new ArrayBuffer(2);
+    const view = new DataView(buffer);
+    view.setUint16(0, position, true);
+
+    this.sendCommand(this.CMD_POS, new Uint8Array(buffer));
   }
 
   addProgramStep() {
@@ -306,13 +592,7 @@ class SliderController {
     stepDiv.innerHTML = `
             <h4>Step ${stepNum + 1}</h4>
             <label>Position: <input type="number" class="step-position" value="0" min="0" max="20000"></label>
-            <div class="speed-input-group">
-                <label>Speed: <input type="number" class="step-speed" value="1000" min="1"></label>
-                <select class="step-speed-unit">
-                    <option value="0">μs</option>
-                    <option value="1">ms</option>
-                </select>
-            </div>
+            <label>Speed (ms): <input type="number" class="step-speed" value="1000" min="1"></label>
             <label>Pause (ms): <input type="number" class="step-pause" value="0" min="0" max="10000"></label>
             <button onclick="this.parentElement.remove()">Remove</button>
         `;
@@ -350,27 +630,46 @@ class SliderController {
       // Save loop program
       const steps = document.getElementById("loopSteps").value;
       const delay = document.getElementById("loopDelay").value;
-      const delayUnit = document.getElementById("loopDelayUnit").value;
       const cycles = document.getElementById("loopCycles").value;
 
-      const command = `LOOP_PROGRAM,${programSlot},${limitedName},${steps},${delay},${delayUnit},${cycles}`;
+      // Warn about very large delays
+      const delayValue = parseInt(delay);
+      if (delayValue > 10000) {
+        // More than 10 seconds
+        const totalTime = Math.round((parseInt(steps) * delayValue) / 1000);
+        if (
+          !confirm(
+            `Warning: Large delay detected!\n\nTotal time per direction: ${totalTime} seconds (${Math.round(
+              totalTime / 60
+            )} minutes)\n\nAre you sure you want to continue?`
+          )
+        ) {
+          return;
+        }
+      }
 
-      // Store loop program locally for future editing
-      this.loopPrograms[programSlot] = { steps, delay, delayUnit, cycles };
-      this.programNames[programSlot] = limitedName;
-      this.saveProgramNames();
+      // Binary format: programId(1), name(8), steps(2), delayMs(4), cycles(1)
+      const buffer = new ArrayBuffer(16);
+      const view = new DataView(buffer);
+      const encoder = new TextEncoder();
 
-      // Update the input field with the limited name
-      document.getElementById("programName").value = limitedName;
+      view.setUint8(0, parseInt(programSlot));
 
-      // Send to Arduino
-      this.sendCommand(command);
+      // Name (8 bytes, padded with spaces)
+      const nameBytes = encoder.encode(limitedName.padEnd(8, " "));
+      for (let i = 0; i < 8; i++) {
+        view.setUint8(1 + i, nameBytes[i] || 32); // 32 = space
+      }
+
+      view.setUint16(9, parseInt(steps), true);
+      view.setUint32(11, parseInt(delay), true);
+      view.setUint8(15, parseInt(cycles));
+
+      this.sendCommand(this.CMD_LOOP_PROGRAM, new Uint8Array(buffer));
       this.log(
         `Loop Program "${limitedName}" saved to slot ${
           parseInt(programSlot) + 1
-        } (${steps} steps, ${delay}${
-          delayUnit === "0" ? "μs" : "ms"
-        } delay, ${cycles} cycles)`
+        } (${steps} steps, ${delay}ms delay, ${cycles} cycles)`
       );
     } else {
       // Save complex program (existing logic)
@@ -380,18 +679,37 @@ class SliderController {
         return;
       }
 
-      let command = `PROGRAM,${programSlot},${limitedName},${steps.length}`;
+      // Binary format: programId(1), name(8), stepCount(1), steps(stepCount*8)
+      const stepCount = steps.length;
+      const buffer = new ArrayBuffer(10 + stepCount * 8);
+      const view = new DataView(buffer);
+      const encoder = new TextEncoder();
 
-      // Build step data
+      view.setUint8(0, parseInt(programSlot));
+
+      // Name (8 bytes, padded with spaces)
+      const nameBytes = encoder.encode(limitedName.padEnd(8, " "));
+      for (let i = 0; i < 8; i++) {
+        view.setUint8(1 + i, nameBytes[i] || 32);
+      }
+
+      view.setUint8(9, stepCount);
+
+      // Steps data
       const stepData = [];
-      steps.forEach((step) => {
-        const position = step.querySelector(".step-position").value;
-        const speed = step.querySelector(".step-speed").value;
-        const speedUnit = step.querySelector(".step-speed-unit").value;
-        const pause = step.querySelector(".step-pause").value;
-        command += `,${position},${speed},${pause},${speedUnit}`;
-        stepData.push({ position, speed, speedUnit, pause });
-      });
+      for (let i = 0; i < stepCount; i++) {
+        const step = steps[i];
+        const position = parseInt(step.querySelector(".step-position").value);
+        const speed = parseInt(step.querySelector(".step-speed").value);
+        const pause = parseInt(step.querySelector(".step-pause").value);
+
+        const offset = 10 + i * 8;
+        view.setUint16(offset, position, true);
+        view.setUint32(offset + 2, speed, true);
+        view.setUint16(offset + 6, pause, true);
+
+        stepData.push({ position, speed, pause });
+      }
 
       // Store program and name locally for future editing
       this.programs[programSlot] = stepData;
@@ -402,7 +720,7 @@ class SliderController {
       document.getElementById("programName").value = limitedName;
 
       // Send to Arduino
-      this.sendCommand(command);
+      this.sendCommand(this.CMD_PROGRAM, new Uint8Array(buffer));
       this.log(
         `Program "${limitedName}" saved to slot ${
           parseInt(programSlot) + 1
@@ -412,9 +730,15 @@ class SliderController {
   }
 
   testProgram() {
-    const programSlot = document.getElementById("programSlot").value;
-    this.sendCommand(`RUN,${programSlot}`);
-    this.log(`Testing Program ${parseInt(programSlot) + 1}`);
+    const programSlot = parseInt(document.getElementById("programSlot").value);
+
+    // Binary format: programId(1)
+    const buffer = new ArrayBuffer(1);
+    const view = new DataView(buffer);
+    view.setUint8(0, programSlot);
+
+    this.sendCommand(this.CMD_RUN, new Uint8Array(buffer));
+    this.log(`Testing Program ${programSlot + 1}`);
   }
 
   loadProgram() {
@@ -431,51 +755,54 @@ class SliderController {
       document.getElementById("programName").value = programName;
       document.getElementById("loopSteps").value = loopData.steps;
       document.getElementById("loopDelay").value = loopData.delay;
-      document.getElementById("loopDelayUnit").value = loopData.delayUnit;
       document.getElementById("loopCycles").value = loopData.cycles;
 
       this.log(
-        `Loaded Loop Program "${programName}" from slot ${
+        `Loaded Loop Program "${programName}" from local storage (slot ${
           parseInt(programSlot) + 1
-        } (${loopData.steps} steps, ${loopData.delay}${
-          loopData.delayUnit === "0" ? "μs" : "ms"
-        } delay, ${loopData.cycles} cycles)`
+        })`
       );
       return;
     }
 
-    // Load complex program (existing logic)
-    const program = this.programs[programSlot];
+    // Check if we have a complex program stored locally
+    if (this.programs[programSlot]) {
+      // Load complex program
+      const program = this.programs[programSlot];
 
-    if (!program) {
-      this.log(`No program data found for slot ${parseInt(programSlot) + 1}`);
+      // Switch to complex program mode
+      this.switchProgramType("complex");
+
+      // Clear existing steps
+      this.clearSteps();
+
+      // Load program name
+      document.getElementById("programName").value = programName;
+
+      // Load steps from stored program
+      program.forEach((step, index) => {
+        this.addProgramStep();
+        const stepDiv = document.querySelectorAll(".program-step")[index];
+        stepDiv.querySelector(".step-position").value = step.position;
+        stepDiv.querySelector(".step-speed").value = step.speed;
+        stepDiv.querySelector(".step-pause").value = step.pause;
+      });
+
+      this.log(
+        `Loaded Complex Program "${programName}" from local storage (slot ${
+          parseInt(programSlot) + 1
+        } with ${program.length} steps)`
+      );
       return;
     }
 
-    // Switch to complex program mode
-    this.switchProgramType("complex");
-
-    // Clear existing steps
-    this.clearSteps();
-
-    // Load program name
-    document.getElementById("programName").value = programName;
-
-    // Load steps from stored program
-    program.forEach((step, index) => {
-      this.addProgramStep();
-      const stepDiv = document.querySelectorAll(".program-step")[index];
-      stepDiv.querySelector(".step-position").value = step.position;
-      stepDiv.querySelector(".step-speed").value = step.speed;
-      stepDiv.querySelector(".step-speed-unit").value = step.speedUnit || 0; // Default to microseconds
-      stepDiv.querySelector(".step-pause").value = step.pause;
-    });
-
+    // No local data found, try to load from Arduino EEPROM
     this.log(
-      `Loaded Program "${programName}" from slot ${
+      `No local data found for slot ${
         parseInt(programSlot) + 1
-      } with ${program.length} steps`
+      }, requesting from Arduino EEPROM...`
     );
+    this.requestProgramFromEEPROM(programSlot);
   }
 
   clearSteps() {
@@ -524,6 +851,24 @@ class SliderController {
       this.programs = data.complexPrograms || {};
       this.loopPrograms = data.loopPrograms || {};
     }
+  }
+
+  requestProgramFromEEPROM(programSlot) {
+    // Request program data from Arduino EEPROM
+    const buffer = new ArrayBuffer(1);
+    const view = new DataView(buffer);
+    view.setUint8(0, parseInt(programSlot));
+
+    // Try to get loop program first
+    this.sendCommand(this.CMD_GET_LOOP_PROGRAM, new Uint8Array(buffer));
+
+    // Also try to get complex program
+    this.sendCommand(this.CMD_GET_PROGRAM, new Uint8Array(buffer));
+  }
+
+  requestAllDataFromEEPROM() {
+    // Request all EEPROM data in one bulk transfer
+    this.sendCommand(this.CMD_GET_ALL_DATA, new Uint8Array(0));
   }
 
   log(message) {

@@ -51,7 +51,7 @@ steppper/
 
 - **Purpose**: Processes WebUSB and serial commands
 - **Functions**: Parse commands, execute actions, send responses
-- **Features**: Configuration updates, program management, manual control
+- **Features**: Configuration updates, program management, manual control, bulk EEPROM loading
 
 ## Benefits of Modular Structure
 
@@ -76,6 +76,7 @@ The functionality remains exactly the same as the original monolithic version. A
 - Button control with pause/resume
 - Configuration management
 - Microstepping support
+- **Bulk EEPROM loading** for efficient data transfer
 
 ## Migration Notes
 

@@ -33,15 +33,9 @@
                         <span class="help">Maximum steps for full slider travel</span>
                     </div>
                     <div class="form-group">
-                        <label for="defaultSpeed">Default Speed:</label>
-                        <div class="speed-input-group">
-                            <input type="number" id="defaultSpeed" value="1000" min="1">
-                            <select id="speedUnit">
-                                <option value="0">microseconds (μs)</option>
-                                <option value="1">milliseconds (ms)</option>
-                            </select>
-                        </div>
-                        <span class="help">Speed controls movement rate. Microseconds: 1-4,294,967,295μs. Milliseconds: 1-4,294,967,295ms (~49 days)</span>
+                        <label for="defaultSpeed">Default Speed (milliseconds):</label>
+                        <input type="number" id="defaultSpeed" value="1000" min="1">
+                        <span class="help">Speed in milliseconds per step (1-4,294,967,295ms)</span>
                     </div>
                     <div class="form-group">
                         <label for="acceleration">Acceleration Steps:</label>
@@ -118,15 +112,12 @@
                                 <span class="help">Number of steps to move forward, then backward</span>
                             </div>
                             <div class="form-group">
-                                <label for="loopDelay">Delay between steps:</label>
-                                <div class="speed-input-group">
-                                    <input type="number" id="loopDelay" value="1000" min="1">
-                                    <select id="loopDelayUnit">
-                                        <option value="0">microseconds (μs)</option>
-                                        <option value="1">milliseconds (ms)</option>
-                                    </select>
+                                <label for="loopDelay">Delay between steps (milliseconds):</label>
+                                <input type="number" id="loopDelay" value="1000" min="1">
+                                <span class="help">⚠️ This is the timing BETWEEN INDIVIDUAL MOTOR STEPS, not a pause between movements. Large values (>10s) will make movement very slow!</span>
+                                <div class="help" style="background: #fff3cd; padding: 0.5rem; margin-top: 0.5rem; border-radius: 4px; border-left: 4px solid #ffc107;">
+                                    <strong>💡 For long pauses between movements:</strong> Use "Complex Program" mode instead, where you can add pause steps between position changes.
                                 </div>
-                                <span class="help">Speed of movement - lower values = faster movement</span>
                             </div>
                             <div class="form-group">
                                 <label for="loopCycles">Number of cycles:</label>
@@ -140,6 +131,7 @@
                         <button id="saveProgram">Save Program</button>
                         <button id="testProgram">Test Program</button>
                         <button id="loadProgram">Load Program</button>
+                        <button id="loadAllFromEEPROM">Load All from EEPROM</button>
                         <button id="clearSteps">Clear Steps</button>
                     </div>
                 </div>

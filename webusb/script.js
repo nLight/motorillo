@@ -45,6 +45,9 @@ class SliderController {
       .getElementById("stopBtn")
       .addEventListener("click", () => this.sendCommand("STOP"));
     document
+      .getElementById("setHomeBtn")
+      .addEventListener("click", () => this.sendCommand("SETHOME"));
+    document
       .getElementById("homeBtn")
       .addEventListener("click", () => this.sendCommand("HOME"));
     document
@@ -187,10 +190,11 @@ class SliderController {
     e.preventDefault();
     const totalSteps = document.getElementById("totalSteps").value;
     const speed = document.getElementById("defaultSpeed").value;
+    const speedUnit = document.getElementById("speedUnit").value;
     const acceleration = document.getElementById("acceleration").value;
     const microstepping = document.getElementById("microstepping").value;
 
-    const command = `CFG,${totalSteps},${speed},${acceleration},${microstepping}`;
+    const command = `CFG,${totalSteps},${speed},${acceleration},${microstepping},${speedUnit}`;
     this.sendCommand(command);
   }
 
@@ -209,7 +213,13 @@ class SliderController {
     stepDiv.innerHTML = `
             <h4>Step ${stepNum + 1}</h4>
             <label>Position: <input type="number" class="step-position" value="0" min="0" max="20000"></label>
-            <label>Speed (μs): <input type="number" class="step-speed" value="1000" min="100" max="1000000"></label>
+            <div class="speed-input-group">
+                <label>Speed: <input type="number" class="step-speed" value="1000" min="1"></label>
+                <select class="step-speed-unit">
+                    <option value="0">μs</option>
+                    <option value="1">ms</option>
+                </select>
+            </div>
             <label>Pause (ms): <input type="number" class="step-pause" value="0" min="0" max="10000"></label>
             <button onclick="this.parentElement.remove()">Remove</button>
         `;
@@ -238,9 +248,10 @@ class SliderController {
     steps.forEach((step) => {
       const position = step.querySelector(".step-position").value;
       const speed = step.querySelector(".step-speed").value;
+      const speedUnit = step.querySelector(".step-speed-unit").value;
       const pause = step.querySelector(".step-pause").value;
-      command += `,${position},${speed},${pause}`;
-      stepData.push({ position, speed, pause });
+      command += `,${position},${speed},${pause},${speedUnit}`;
+      stepData.push({ position, speed, speedUnit, pause });
     });
 
     // Store program and name locally for future editing
@@ -289,6 +300,7 @@ class SliderController {
       const stepDiv = document.querySelectorAll(".program-step")[index];
       stepDiv.querySelector(".step-position").value = step.position;
       stepDiv.querySelector(".step-speed").value = step.speed;
+      stepDiv.querySelector(".step-speed-unit").value = step.speedUnit || 0; // Default to microseconds
       stepDiv.querySelector(".step-pause").value = step.pause;
     });
 

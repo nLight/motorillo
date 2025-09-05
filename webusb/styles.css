@@ -116,6 +116,20 @@ button:disabled {
     margin-bottom: 1.5rem;
 }
 
+.speed-input-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.speed-input-group input {
+    flex: 1;
+}
+
+.speed-input-group select {
+    min-width: 120px;
+}
+
 label {
     display: block;
     margin-bottom: 0.5rem;
@@ -226,6 +240,20 @@ input[type="number"]:focus {
     margin-bottom: 0.5rem;
 }
 
+.program-step .speed-input-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-right: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.program-step .speed-input-group select {
+    padding: 0.25rem;
+    min-width: 60px;
+    margin-left: 0;
+}
+
 .program-step input {
     width: 100px;
     padding: 0.25rem;
@@ -266,6 +294,28 @@ input[type="number"]:focus {
     display: flex;
     gap: 1rem;
     margin-bottom: 1rem;
+}
+
+.home-controls {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+#setHomeBtn {
+    background: #4CAF50;
+}
+
+#setHomeBtn:hover {
+    background: #45a049;
+}
+
+#homeBtn {
+    background: #FF9800;
+}
+
+#homeBtn:hover {
+    background: #F57C00;
 }
 
 #startBtn {

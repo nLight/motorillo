@@ -2,6 +2,7 @@
 #define MOTOR_CONTROL_H
 
 #include <Arduino.h>
+#include "menu_system.h"
 
 // Pin definitions
 const int MS1_PIN = 4;
@@ -19,6 +20,11 @@ enum MicrostepMode {
   SIXTEENTH_STEP = 16
 };
 
+// External variables from menu system
+extern MenuItem menuItems[];
+extern int menuItemCount;
+extern int currentMenuIndex;
+
 // Function declarations
 void setupMotorPins();
 void setMicrostepping(uint8_t mode);
@@ -26,6 +32,7 @@ uint32_t convertSpeedToMicroseconds(uint32_t speedValue, uint8_t speedUnit);
 void moveToPosition(long targetPosition);
 void moveToPositionWithSpeed(long targetPosition, uint32_t speed);
 void runProgram(uint8_t programId);
+void runLoopProgram(uint8_t programId);
 void executeStoredProgram();
 
 #endif // MOTOR_CONTROL_H

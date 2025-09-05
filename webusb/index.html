@@ -60,6 +60,7 @@
                         <span class="help">Higher values = smoother/quieter, lower values = more torque</span>
                     </div>
                     <button type="submit">Save Configuration</button>
+                    <button type="button" id="loadConfigBtn" style="background: #2196F3; margin-left: 10px;">Load from Arduino</button>
                 </form>
             </div>
 
@@ -70,6 +71,15 @@
                     <strong>💡 Cycling Programs:</strong> Name your program starting with "CYCLE" or "LOOP" (e.g., "CYCLE1H", "LOOP30M") to make it repeat automatically!
                 </div>
                 <div class="program-builder">
+                    <div class="program-type-selector">
+                        <label>Program Type:</label>
+                        <div class="program-type-buttons">
+                            <button id="complexProgramBtn" class="program-type-btn active">Complex Program</button>
+                            <button id="loopProgramBtn" class="program-type-btn">Loop Program</button>
+                        </div>
+                        <div class="help">Loop programs are much more memory efficient for forward/backward cycles</div>
+                    </div>
+                    
                     <div class="steps-container">
                         <div class="program-selector">
                             <label for="programSlot">Program Slot:</label>
@@ -91,10 +101,41 @@
                             <input type="text" id="programName" maxlength="8" placeholder="e.g. CYCLE1H, LOOP30M, PORTRAIT" style="text-transform: uppercase;">
                             <span class="help">Short descriptive name for easy identification</span>
                         </div>
-                        <h3>Movement Steps</h3>
-                        <div id="stepsList"></div>
-                        <button id="addStep">Add Step</button>
+                        
+                        <!-- Complex Program Builder -->
+                        <div id="complexProgramSection">
+                            <h3>Movement Steps</h3>
+                            <div id="stepsList"></div>
+                            <button id="addStep">Add Step</button>
+                        </div>
+                        
+                        <!-- Loop Program Builder -->
+                        <div id="loopProgramSection" style="display: none;">
+                            <h3>Loop Parameters</h3>
+                            <div class="form-group">
+                                <label for="loopSteps">Steps per direction:</label>
+                                <input type="number" id="loopSteps" value="1000" min="1" max="10000">
+                                <span class="help">Number of steps to move forward, then backward</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="loopDelay">Delay between steps:</label>
+                                <div class="speed-input-group">
+                                    <input type="number" id="loopDelay" value="1000" min="1">
+                                    <select id="loopDelayUnit">
+                                        <option value="0">microseconds (μs)</option>
+                                        <option value="1">milliseconds (ms)</option>
+                                    </select>
+                                </div>
+                                <span class="help">Speed of movement - lower values = faster movement</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="loopCycles">Number of cycles:</label>
+                                <input type="number" id="loopCycles" value="10" min="1" max="255">
+                                <span class="help">How many forward/backward cycles to perform</span>
+                            </div>
+                        </div>
                     </div>
+                    
                     <div class="program-actions">
                         <button id="saveProgram">Save Program</button>
                         <button id="testProgram">Test Program</button>

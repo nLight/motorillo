@@ -36,6 +36,9 @@ class SliderController {
     document
       .getElementById("configForm")
       .addEventListener("submit", (e) => this.handleConfigSubmit(e));
+    document
+      .getElementById("loadConfigBtn")
+      .addEventListener("click", () => this.loadConfiguration());
 
     // Manual controls
     document
@@ -71,12 +74,22 @@ class SliderController {
       .getElementById("clearSteps")
       .addEventListener("click", () => this.clearSteps());
 
+    // Program type switching
+    document
+      .getElementById("complexProgramBtn")
+      .addEventListener("click", () => this.switchProgramType("complex"));
+    document
+      .getElementById("loopProgramBtn")
+      .addEventListener("click", () => this.switchProgramType("loop"));
+
     // Initialize with one step
     this.addProgramStep();
 
     // Initialize program storage
     this.programs = {}; // Store programs locally for editing
     this.programNames = {}; // Store program names locally
+    this.loopPrograms = {}; // Store loop programs locally
+    this.currentProgramType = "complex"; // Track current program type
 
     // Load saved program names from localStorage
     this.loadProgramNames();
@@ -115,27 +128,22 @@ class SliderController {
 
   async connectToPort(port) {
     try {
-      // Set up event handlers
-      port.onReceive = (data) => {
-        const decoder = new TextDecoder();
-        const text = decoder.decode(data);
-        this.log(`Received: ${text.trim()}`);
-      };
-
-      port.onReceiveError = (error) => {
-        this.log("Receive error: " + error);
-      };
-
       await port.connect();
-
       this.port = port;
       this.connected = true;
+
+      // Set up data listener
+      this.setupDataListener();
+
       this.updateConnectionStatus(true);
-      this.log("Connected to slider successfully!");
+      this.log("Connected to slider controller");
+
+      // Automatically load configuration from Arduino
+      setTimeout(() => {
+        this.loadConfiguration();
+      }, 1000); // Wait 1 second for Arduino to be ready
     } catch (error) {
-      this.log("Connection error: " + error.message);
-      this.connected = false;
-      this.updateConnectionStatus(false);
+      this.log(`Connection failed: ${error.message}`);
     }
   }
 
@@ -151,6 +159,78 @@ class SliderController {
     this.port = null;
     this.connected = false;
     this.updateConnectionStatus(false);
+  }
+
+  loadConfiguration() {
+    if (this.connected) {
+      this.sendCommand("GET_CONFIG");
+      this.log("Loading configuration from Arduino...");
+
+      // Show loading indicator
+      const configForm = document.getElementById("configForm");
+      const originalText = configForm.querySelector(
+        'button[type="submit"]'
+      ).textContent;
+      configForm.querySelector('button[type="submit"]').textContent =
+        "Loading...";
+
+      // Reset button text after 3 seconds
+      setTimeout(() => {
+        configForm.querySelector('button[type="submit"]').textContent =
+          originalText;
+      }, 3000);
+    }
+  }
+
+  setupDataListener() {
+    // WebUSB handles data reception through the onReceive callback
+    this.port.onReceive = (data) => {
+      const decoder = new TextDecoder();
+      const text = decoder.decode(data);
+      const lines = text.split("\n");
+
+      for (const line of lines) {
+        if (line.trim()) {
+          this.handleIncomingData(line.trim());
+        }
+      }
+    };
+
+    this.port.onReceiveError = (error) => {
+      console.error("Receive error:", error);
+    };
+  }
+
+  handleIncomingData(data) {
+    this.log(`Received: ${data}`);
+
+    // Handle configuration data
+    if (data.startsWith("CONFIG,")) {
+      const parts = data.split(",");
+      if (parts.length >= 6) {
+        const totalSteps = parts[1];
+        const speed = parts[2];
+        const acceleration = parts[3];
+        const microstepping = parts[4];
+        const speedUnit = parts[5];
+
+        // Populate form fields
+        document.getElementById("totalSteps").value = totalSteps;
+        document.getElementById("defaultSpeed").value = speed;
+        document.getElementById("acceleration").value = acceleration;
+        document.getElementById("microstepping").value = microstepping;
+        document.getElementById("speedUnit").value = speedUnit;
+
+        this.log(
+          `Configuration loaded: ${totalSteps} steps, ${speed} speed, ${acceleration} accel, ${microstepping}x microstepping`
+        );
+
+        // Reset button text
+        const configForm = document.getElementById("configForm");
+        configForm.querySelector('button[type="submit"]').textContent =
+          "Save Configuration";
+      }
+    }
   }
 
   async sendCommand(command) {
@@ -226,13 +306,25 @@ class SliderController {
     stepsList.appendChild(stepDiv);
   }
 
-  saveProgram() {
-    const steps = document.querySelectorAll(".program-step");
-    if (steps.length === 0) {
-      this.log("No program steps defined");
-      return;
-    }
+  switchProgramType(type) {
+    this.currentProgramType = type;
 
+    // Update button states
+    document
+      .querySelectorAll(".program-type-btn")
+      .forEach((btn) => btn.classList.remove("active"));
+    document.getElementById(`${type}ProgramBtn`).classList.add("active");
+
+    // Show/hide sections
+    document.getElementById("complexProgramSection").style.display =
+      type === "complex" ? "block" : "none";
+    document.getElementById("loopProgramSection").style.display =
+      type === "loop" ? "block" : "none";
+
+    this.log(`Switched to ${type} program mode`);
+  }
+
+  saveProgram() {
     const programSlot = document.getElementById("programSlot").value;
     const programName =
       document.getElementById("programName").value.trim() ||
@@ -241,34 +333,69 @@ class SliderController {
     // Limit program name to 8 characters
     const limitedName = programName.substring(0, 8).toUpperCase();
 
-    let command = `PROGRAM,${programSlot},${limitedName},${steps.length}`;
+    if (this.currentProgramType === "loop") {
+      // Save loop program
+      const steps = document.getElementById("loopSteps").value;
+      const delay = document.getElementById("loopDelay").value;
+      const delayUnit = document.getElementById("loopDelayUnit").value;
+      const cycles = document.getElementById("loopCycles").value;
 
-    // Build step data
-    const stepData = [];
-    steps.forEach((step) => {
-      const position = step.querySelector(".step-position").value;
-      const speed = step.querySelector(".step-speed").value;
-      const speedUnit = step.querySelector(".step-speed-unit").value;
-      const pause = step.querySelector(".step-pause").value;
-      command += `,${position},${speed},${pause},${speedUnit}`;
-      stepData.push({ position, speed, speedUnit, pause });
-    });
+      const command = `LOOP_PROGRAM,${programSlot},${limitedName},${steps},${delay},${delayUnit},${cycles}`;
 
-    // Store program and name locally for future editing
-    this.programs[programSlot] = stepData;
-    this.programNames[programSlot] = limitedName;
-    this.saveProgramNames();
+      // Store loop program locally for future editing
+      this.loopPrograms[programSlot] = { steps, delay, delayUnit, cycles };
+      this.programNames[programSlot] = limitedName;
+      this.saveProgramNames();
 
-    // Update the input field with the limited name
-    document.getElementById("programName").value = limitedName;
+      // Update the input field with the limited name
+      document.getElementById("programName").value = limitedName;
 
-    // Send to Arduino
-    this.sendCommand(command);
-    this.log(
-      `Program "${limitedName}" saved to slot ${
-        parseInt(programSlot) + 1
-      } with ${steps.length} steps`
-    );
+      // Send to Arduino
+      this.sendCommand(command);
+      this.log(
+        `Loop Program "${limitedName}" saved to slot ${
+          parseInt(programSlot) + 1
+        } (${steps} steps, ${delay}${
+          delayUnit === "0" ? "μs" : "ms"
+        } delay, ${cycles} cycles)`
+      );
+    } else {
+      // Save complex program (existing logic)
+      const steps = document.querySelectorAll(".program-step");
+      if (steps.length === 0) {
+        this.log("No program steps defined");
+        return;
+      }
+
+      let command = `PROGRAM,${programSlot},${limitedName},${steps.length}`;
+
+      // Build step data
+      const stepData = [];
+      steps.forEach((step) => {
+        const position = step.querySelector(".step-position").value;
+        const speed = step.querySelector(".step-speed").value;
+        const speedUnit = step.querySelector(".step-speed-unit").value;
+        const pause = step.querySelector(".step-pause").value;
+        command += `,${position},${speed},${pause},${speedUnit}`;
+        stepData.push({ position, speed, speedUnit, pause });
+      });
+
+      // Store program and name locally for future editing
+      this.programs[programSlot] = stepData;
+      this.programNames[programSlot] = limitedName;
+      this.saveProgramNames();
+
+      // Update the input field with the limited name
+      document.getElementById("programName").value = limitedName;
+
+      // Send to Arduino
+      this.sendCommand(command);
+      this.log(
+        `Program "${limitedName}" saved to slot ${
+          parseInt(programSlot) + 1
+        } with ${steps.length} steps`
+      );
+    }
   }
 
   testProgram() {
@@ -279,14 +406,41 @@ class SliderController {
 
   loadProgram() {
     const programSlot = document.getElementById("programSlot").value;
-    const program = this.programs[programSlot];
     const programName =
       this.programNames[programSlot] || `PGM${parseInt(programSlot) + 1}`;
+
+    // Check if we have a loop program stored locally
+    if (this.loopPrograms[programSlot]) {
+      // Load loop program
+      this.switchProgramType("loop");
+      const loopData = this.loopPrograms[programSlot];
+
+      document.getElementById("programName").value = programName;
+      document.getElementById("loopSteps").value = loopData.steps;
+      document.getElementById("loopDelay").value = loopData.delay;
+      document.getElementById("loopDelayUnit").value = loopData.delayUnit;
+      document.getElementById("loopCycles").value = loopData.cycles;
+
+      this.log(
+        `Loaded Loop Program "${programName}" from slot ${
+          parseInt(programSlot) + 1
+        } (${loopData.steps} steps, ${loopData.delay}${
+          loopData.delayUnit === "0" ? "μs" : "ms"
+        } delay, ${loopData.cycles} cycles)`
+      );
+      return;
+    }
+
+    // Load complex program (existing logic)
+    const program = this.programs[programSlot];
 
     if (!program) {
       this.log(`No program data found for slot ${parseInt(programSlot) + 1}`);
       return;
     }
+
+    // Switch to complex program mode
+    this.switchProgramType("complex");
 
     // Clear existing steps
     this.clearSteps();
@@ -341,16 +495,21 @@ class SliderController {
   }
 
   saveProgramNames() {
-    localStorage.setItem(
-      "sliderProgramNames",
-      JSON.stringify(this.programNames)
-    );
+    const data = {
+      names: this.programNames,
+      complexPrograms: this.programs,
+      loopPrograms: this.loopPrograms,
+    };
+    localStorage.setItem("sliderProgramData", JSON.stringify(data));
   }
 
   loadProgramNames() {
-    const saved = localStorage.getItem("sliderProgramNames");
+    const saved = localStorage.getItem("sliderProgramData");
     if (saved) {
-      this.programNames = JSON.parse(saved);
+      const data = JSON.parse(saved);
+      this.programNames = data.names || {};
+      this.programs = data.complexPrograms || {};
+      this.loopPrograms = data.loopPrograms || {};
     }
   }
 

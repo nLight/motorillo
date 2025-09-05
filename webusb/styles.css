@@ -76,6 +76,41 @@ button:disabled {
     cursor: not-allowed;
 }
 
+.program-type-selector {
+    margin-bottom: 2rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.program-type-buttons {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.program-type-btn {
+    background: #e9ecef;
+    color: #495057;
+    border: 1px solid #dee2e6;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.program-type-btn:hover {
+    background: #dee2e6;
+}
+
+.program-type-btn.active {
+    background: #2196F3;
+    color: white;
+    border-color: #2196F3;
+}
+
 .tabs {
     display: flex;
     background: #f8f9fa;

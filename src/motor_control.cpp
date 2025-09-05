@@ -79,78 +79,27 @@ void moveToPositionWithSpeed(long targetPosition, uint32_t speed) {
 
   digitalWrite(DIR_PIN, direction ? HIGH : LOW);
 
-  // Apply acceleration/deceleration
+  // Simplified acceleration (removed complex calculations to save space)
   for (long i = 0; i < actualStepsToMove; i++) {
     // Check for pause request during movement
     if (programPaused) {
-      // Update current position to where we actually are (convert back from microsteps)
       currentPosition += direction ? (i / config.microstepping) : -(i / config.microstepping);
-      return; // Exit movement if paused
-    }
-
-    uint32_t stepDelay = adjustedSpeed;
-
-    // Acceleration phase (adjusted for microstepping)
-    long accelSteps = config.acceleration * config.microstepping;
-    if (i < accelSteps) {
-      stepDelay += ((accelSteps - i) * 10) / config.microstepping;
-    }
-    // Deceleration phase (adjusted for microstepping)
-    else if (i > actualStepsToMove - accelSteps) {
-      stepDelay += ((accelSteps - (actualStepsToMove - i)) * 10) / config.microstepping;
+      return;
     }
 
     digitalWrite(STEP_PIN, HIGH);
-
-    // Use longer HIGH pulse for more torque during slow movements
-    uint32_t highPulseTime = stepDelay;
-    if (stepDelay > 10000) { // For very slow movements, use longer pulse
-      highPulseTime = min(stepDelay, (uint32_t)5000); // Cap at 5ms for safety
-    }
-
-    // Handle delays - break very long delays into chunks with button checking
-    if (highPulseTime <= 16383) {
-      delayMicroseconds(highPulseTime);
-    } else {
-      // For long delays, break into smaller chunks to check button
-      unsigned long delayStart = millis();
-      unsigned long totalDelayMs = highPulseTime / 1000;
-      while (millis() - delayStart < totalDelayMs) {
-        if (programPaused) {
-          currentPosition += direction ? (i / config.microstepping) : -(i / config.microstepping);
-          return;
-        }
-        delay(10); // Small delay chunk
-      }
-      delayMicroseconds(highPulseTime % 1000);  // Remainder in microseconds
-    }
-
+    delayMicroseconds(adjustedSpeed);
     digitalWrite(STEP_PIN, LOW);
-
-    // Same delay after LOW pulse with button checking
-    if (stepDelay <= 16383) {
-      delayMicroseconds(stepDelay);
-    } else {
-      unsigned long delayStart = millis();
-      unsigned long totalDelayMs = stepDelay / 1000;
-      while (millis() - delayStart < totalDelayMs) {
-        if (programPaused) {
-          currentPosition += direction ? (i / config.microstepping) : -(i / config.microstepping);
-          return;
-        }
-        delay(10);
-      }
-      delayMicroseconds(stepDelay % 1000);
-    }
+    delayMicroseconds(adjustedSpeed);
   }
 
   currentPosition = targetPosition;
 }
 
-// Run a stored program
+// Run a stored program (legacy complex program)
 void runProgram(uint8_t programId) {
   MovementStep steps[MAX_STEPS_PER_PROGRAM];
-  uint8_t stepCount = loadProgram(programId, steps);
+  uint8_t stepCount = loadComplexProgram(programId, steps);
 
   for (int i = 0; i < stepCount; i++) {
     // Check if we should pause before starting this step
@@ -180,6 +129,48 @@ void runProgram(uint8_t programId) {
   }
 }
 
+// Run a loop program (forward/backward cycles)
+void runLoopProgram(uint8_t programId) {
+  LoopProgram loopProg;
+  if (!loadLoopProgram(programId, &loopProg)) {
+    return; // Failed to load loop program
+  }
+
+  // Convert delay to microseconds for consistent timing
+  uint32_t delayMicroseconds = convertSpeedToMicroseconds(loopProg.delayMs, 1); // Always milliseconds for loops
+
+  for (int cycle = 0; cycle < loopProg.cycles; cycle++) {
+    // Check if we should pause before starting this cycle
+    if (programPaused) {
+      return; // Exit if paused
+    }
+
+    // Move forward
+    long targetPosition = currentPosition + loopProg.steps;
+    moveToPositionWithSpeed(targetPosition, delayMicroseconds);
+
+    // Check if we got paused during forward movement
+    if (programPaused) {
+      return; // Exit if paused during movement
+    }
+
+    // Brief pause at end of forward movement
+    delay(100);
+
+    // Move backward
+    targetPosition = currentPosition - loopProg.steps;
+    moveToPositionWithSpeed(targetPosition, delayMicroseconds);
+
+    // Check if we got paused during backward movement
+    if (programPaused) {
+      return; // Exit if paused during movement
+    }
+
+    // Brief pause at end of backward movement
+    delay(100);
+  }
+}
+
 // Execute stored program (called from main loop)
 void executeStoredProgram() {
   // Don't execute if paused
@@ -200,12 +191,18 @@ void executeStoredProgram() {
       }
     }
 
+    // Check program type and run appropriate function
+    uint8_t programType = getProgramType(programToRun);
+    if (programType == PROGRAM_TYPE_LOOP) {
+      runLoopProgram(programToRun);
+    } else if (programType == PROGRAM_TYPE_COMPLEX) {
+      runProgram(programToRun);
+    }
+
     // Check if this is a cycling program based on name
     char programName[9];
     loadProgramName(programToRun, programName);
     bool isCycling = (strncmp(programName, "CYCLE", 5) == 0) || (strncmp(programName, "LOOP", 4) == 0);
-
-    runProgram(programToRun);
 
     // If it's a cycling program, restart it immediately
     if (isCycling) {

@@ -3,139 +3,124 @@
 #include "motor_control.h"
 #include "display_manager.h"
 
+// External variables
+extern bool programRunning;
+extern long currentPosition;
+
 // Process incoming commands from WebUSB/Serial
 void processCommand(String command) {
-  // Direct character comparison for speed and memory
-  char c = command.charAt(0);
+  // Convert to char array for efficiency
+  char cmd[64];
+  command.toCharArray(cmd, sizeof(cmd));
+  char* ptr = cmd;
 
-  if (c == 'C' && command.charAt(1) == 'F') { // CONFIG or CFG
-    int firstComma = command.indexOf(',');
-    int secondComma = command.indexOf(',', firstComma + 1);
-    int thirdComma = command.indexOf(',', secondComma + 1);
-    int fourthComma = command.indexOf(',', thirdComma + 1);
-    int fifthComma = command.indexOf(',', fourthComma + 1);
+  // Skip whitespace
+  while (*ptr == ' ' || *ptr == '\t') ptr++;
 
-    if (firstComma > 0 && secondComma > 0 && thirdComma > 0) {
-      config.totalSteps = command.substring(firstComma + 1, secondComma).toInt();
-      config.speed = command.substring(secondComma + 1, thirdComma).toInt();
-      config.acceleration = command.substring(thirdComma + 1, fourthComma > 0 ? fourthComma : command.length()).toInt();
+  char c = *ptr;
+  if (c == '\0') return; // Empty command
 
-      // Optional microstepping parameter
-      if (fourthComma > 0) {
-        uint8_t newMicrostepping = command.substring(fourthComma + 1, fifthComma > 0 ? fifthComma : command.length()).toInt();
-        if (newMicrostepping == 1 || newMicrostepping == 2 || newMicrostepping == 4 ||
-            newMicrostepping == 8 || newMicrostepping == 16) {
-          config.microstepping = newMicrostepping;
-          setMicrostepping(config.microstepping);
-        }
+  if (c == 'C' && *(ptr+1) == 'F') { // CONFIG
+    char* comma1 = strchr(ptr, ',');
+    if (!comma1) return;
+    char* comma2 = strchr(comma1 + 1, ',');
+    if (!comma2) return;
+    char* comma3 = strchr(comma2 + 1, ',');
+    if (!comma3) return;
+
+    config.totalSteps = atoi(comma1 + 1);
+    config.speed = atoi(comma2 + 1);
+    config.acceleration = atoi(comma3 + 1);
+
+    char* comma4 = strchr(comma3 + 1, ',');
+    if (comma4) {
+      uint8_t newMicrostepping = atoi(comma4 + 1);
+      if (newMicrostepping == 1 || newMicrostepping == 2 || newMicrostepping == 4 ||
+          newMicrostepping == 8 || newMicrostepping == 16) {
+        config.microstepping = newMicrostepping;
+        setMicrostepping(config.microstepping);
       }
-
-      // Optional speed unit parameter (0=microseconds, 1=seconds)
-      if (fifthComma > 0) {
-        uint8_t speedUnit = command.substring(fifthComma + 1).toInt();
-        if (speedUnit == 0 || speedUnit == 1) {
-          config.speedUnit = speedUnit;
-        }
-      } else {
-        // Default to microseconds for backward compatibility
-        config.speedUnit = 0;
-      }
-
-      saveConfig();
-      displayMessage(F("Config OK"));
-    }
-  }
-  else if (c == 'C' && command.charAt(1) == 'Y') { // CYCLE - deprecated, use cycling programs instead
-    displayMessage(F("Use CYCLE program"));
-  }
-  else if (c == 'P') { // PROGRAM or POS
-    if (command.charAt(1) == 'R') { // PROGRAM
-      int commaIndex = command.indexOf(',');
-      int programId = command.substring(commaIndex + 1, command.indexOf(',', commaIndex + 1)).toInt();
-      commaIndex = command.indexOf(',', commaIndex + 1);
-
-      int nextCommaIndex = command.indexOf(',', commaIndex + 1);
-      String programName = command.substring(commaIndex + 1, nextCommaIndex);
-      commaIndex = nextCommaIndex;
-
-      int stepCount = command.substring(commaIndex + 1, command.indexOf(',', commaIndex + 1)).toInt();
-
-      if (stepCount <= MAX_STEPS_PER_PROGRAM) {
-        MovementStep steps[MAX_STEPS_PER_PROGRAM];
-        commaIndex = command.indexOf(',', commaIndex + 1);
-
-        for (int i = 0; i < stepCount; i++) {
-          steps[i].position = command.substring(commaIndex + 1, command.indexOf(',', commaIndex + 1)).toInt();
-          commaIndex = command.indexOf(',', commaIndex + 1);
-          steps[i].speed = command.substring(commaIndex + 1, command.indexOf(',', commaIndex + 1)).toInt();
-          commaIndex = command.indexOf(',', commaIndex + 1);
-
-          // Check if speed unit is provided (optional, defaults to microseconds)
-          int nextCommaIndex = command.indexOf(',', commaIndex + 1);
-          if (nextCommaIndex != -1 && command.substring(commaIndex + 1, nextCommaIndex).indexOf('.') == -1) {
-            // No decimal point found, check if next parameter is speed unit
-            String pauseStr = command.substring(commaIndex + 1, nextCommaIndex);
-            String nextParam = command.substring(nextCommaIndex + 1, command.indexOf(',', nextCommaIndex + 1));
-
-            // If next parameter is 0 or 1 (speed units), this is speed unit format
-            if (nextParam == "0" || nextParam == "1") {
-              steps[i].pauseMs = pauseStr.toInt();
-              commaIndex = nextCommaIndex;
-              steps[i].speedUnit = command.substring(commaIndex + 1, command.indexOf(',', commaIndex + 1)).toInt();
-              commaIndex = command.indexOf(',', commaIndex + 1);
-            } else {
-              // Old format - pause only, default to microseconds
-              steps[i].pauseMs = pauseStr.toInt();
-              steps[i].speedUnit = 0; // microseconds
-              commaIndex = nextCommaIndex;
-            }
-          } else {
-            // Old format - pause only, default to microseconds
-            steps[i].pauseMs = command.substring(commaIndex + 1, command.indexOf(',', commaIndex + 1)).toInt();
-            steps[i].speedUnit = 0; // microseconds
-            commaIndex = command.indexOf(',', commaIndex + 1);
-          }
-        }
-
-        saveProgram(programId, steps, stepCount);
-        saveProgramName(programId, programName.c_str());
-        config.programCount = max(config.programCount, programId + 1);
-        saveConfig();
-        displayMessage(F("Saved"));
+      char* comma5 = strchr(comma4 + 1, ',');
+      if (comma5) {
+        config.speedUnit = atoi(comma5 + 1);
       }
     }
-    else if (command.charAt(1) == 'O') { // POS
-      int position = command.substring(4).toInt();
+    saveConfig();
+    displayMessage(F("OK"));
+  }
+  else if (c == 'P' && *(ptr+1) == 'O') { // POS
+    char* comma = strchr(ptr, ',');
+    if (comma) {
+      int position = atoi(comma + 1);
       displayMessage(F("Move"));
       moveToPosition(position);
-      updateDisplay();
     }
   }
   else if (c == 'R') { // RUN
-    int programId = command.substring(4).toInt();
-    displayMessage(F("Running"));
-    runProgram(programId);
+    char* comma = strchr(ptr, ',');
+    if (comma) {
+      int programId = atoi(comma + 1);
+      displayMessage(F("Running"));
+      runProgram(programId);
+    }
   }
-  else if (c == 'S' && command.charAt(1) == 'T' && command.charAt(2) == 'A') { // START
-    programRunning = true;
-    displayMessage(F("Start"));
+  else if (c == 'S' && *(ptr+1) == 'T') {
+    if (*(ptr+2) == 'A') { // START
+      programRunning = true;
+      displayMessage(F("Start"));
+    } else if (*(ptr+2) == 'O') { // STOP
+      programRunning = false;
+      displayMessage(F("Stop"));
+    }
   }
-  else if (c == 'S' && command.charAt(1) == 'T' && command.charAt(2) == 'O') { // STOP
-    programRunning = false;
-    displayMessage(F("Stop"));
+  else if (c == 'H') {
+    if (*(ptr+1) == 'O') { // HOME
+      displayMessage(F("Home"));
+      moveToPosition(0);
+    }
   }
-  else if (c == 'H') { // HOME
-    displayMessage(F("Home"));
-    moveToPosition(0);
-    updateDisplay();
-  }
-  else if (c == 'S' && command.charAt(1) == 'E' && command.charAt(2) == 'T' &&
-           command.charAt(3) == 'H' && command.charAt(4) == 'O' && command.charAt(5) == 'M' && command.charAt(6) == 'E') { // SETHOME
+  else if (c == 'S' && *(ptr+1) == 'E' && *(ptr+2) == 'T' && *(ptr+3) == 'H') { // SETHOME
     displayMessage(F("Set Home"));
     currentPosition = 0;
-    updateDisplay();
   }
-  else {
-    // Error response would be sent here, but we don't have Serial access in this module
+  else if (c == 'L' && *(ptr+1) == 'O' && *(ptr+2) == 'O' && *(ptr+3) == 'P') { // LOOP_PROGRAM
+    // Parse: LOOP_PROGRAM,slot,name,steps,delay,delayUnit,cycles
+    char* comma1 = strchr(ptr, ',');
+    if (!comma1) return;
+    char* comma2 = strchr(comma1 + 1, ',');
+    if (!comma2) return;
+    char* comma3 = strchr(comma2 + 1, ',');
+    if (!comma3) return;
+    char* comma4 = strchr(comma3 + 1, ',');
+    if (!comma4) return;
+    char* comma5 = strchr(comma4 + 1, ',');
+    if (!comma5) return;
+    char* comma6 = strchr(comma5 + 1, ',');
+    if (!comma6) return;
+
+    uint8_t programId = atoi(comma1 + 1);
+    char programName[9];
+    strncpy(programName, comma2 + 1, 8);
+    programName[8] = '\0';
+    
+    uint16_t steps = atoi(comma3 + 1);
+    uint32_t delayMs = atoi(comma4 + 1);
+    uint8_t delayUnit = atoi(comma5 + 1);
+    uint8_t cycles = atoi(comma6 + 1);
+
+    // Convert delay to milliseconds if needed
+    if (delayUnit == 0) { // microseconds
+      delayMs = delayMs / 1000; // Convert to milliseconds
+    }
+
+    // Save the loop program
+    LoopProgram loopProg;
+    loopProg.steps = steps;
+    loopProg.delayMs = delayMs;
+    loopProg.cycles = cycles;
+    loopProg.speedUnit = delayUnit;
+
+    saveLoopProgram(programId, programName, steps, delayMs, cycles, delayUnit);
+    displayMessage(F("Loop Saved"));
   }
 }

@@ -63,8 +63,9 @@ void loop() {
       // WebUSB is available, switch to programming mode
       if (!programmingMode) {
         programmingMode = true;
-        Serial.write(F("Ready\r\n> "));
-        Serial.flush();
+        // Removed ready message to save space
+        // Serial.write(F("Ready\r\n> "));
+        // Serial.flush();
       }
     } else if (millis() - bootTime >= serialWaitTime) {
       // Timeout reached, finalize mode
@@ -83,8 +84,9 @@ void loop() {
     if (inMenuMode) {
       exitMenuMode();
     }
-    Serial.write(F("OK!\r\n> "));
-    Serial.flush();
+    // Removed OK message to save space
+    // Serial.write(F("OK!\r\n> "));
+    // Serial.flush();
   }
 
   // Check button state (with debouncing)
@@ -102,8 +104,7 @@ void loop() {
     String command = Serial.readStringUntil('\n');
     command.trim();
     processCommand(command);
-    Serial.write(F("> "));
-    Serial.flush();
+    // Removed Serial.flush() to save space
   } else if (!programmingMode && programRunning) {
     executeStoredProgram();
   } else {

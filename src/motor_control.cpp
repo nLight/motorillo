@@ -133,8 +133,15 @@ void runProgram(uint8_t programId) {
 void runLoopProgram(uint8_t programId) {
   LoopProgram loopProg;
   if (!loadLoopProgram(programId, &loopProg)) {
+    Serial.println(F("ERROR: Failed to load loop program"));
     return; // Failed to load loop program
   }
+
+  Serial.print(F("Starting loop program: "));
+  Serial.print(loopProg.steps);
+  Serial.print(F(" steps, "));
+  Serial.print(loopProg.cycles);
+  Serial.println(F(" cycles"));
 
   // Convert delay to microseconds for consistent timing
   uint32_t delayMicroseconds = convertSpeedToMicroseconds(loopProg.delayMs, 1); // Always milliseconds for loops
@@ -142,8 +149,15 @@ void runLoopProgram(uint8_t programId) {
   for (int cycle = 0; cycle < loopProg.cycles; cycle++) {
     // Check if we should pause before starting this cycle
     if (programPaused) {
+      Serial.println(F("Program paused"));
       return; // Exit if paused
     }
+
+    Serial.print(F("Cycle "));
+    Serial.print(cycle + 1);
+    Serial.print(F("/"));
+    Serial.print(loopProg.cycles);
+    Serial.println(F(" - Forward"));
 
     // Move forward
     long targetPosition = currentPosition + loopProg.steps;
@@ -151,11 +165,16 @@ void runLoopProgram(uint8_t programId) {
 
     // Check if we got paused during forward movement
     if (programPaused) {
+      Serial.println(F("Program paused during forward movement"));
       return; // Exit if paused during movement
     }
 
     // Brief pause at end of forward movement
     delay(100);
+
+    Serial.print(F("Cycle "));
+    Serial.print(cycle + 1);
+    Serial.println(F(" - Backward"));
 
     // Move backward
     targetPosition = currentPosition - loopProg.steps;
@@ -163,12 +182,15 @@ void runLoopProgram(uint8_t programId) {
 
     // Check if we got paused during backward movement
     if (programPaused) {
+      Serial.println(F("Program paused during backward movement"));
       return; // Exit if paused during movement
     }
 
     // Brief pause at end of backward movement
     delay(100);
   }
+
+  Serial.println(F("Loop program completed"));
 }
 
 // Execute stored program (called from main loop)

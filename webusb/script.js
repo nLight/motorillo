@@ -231,6 +231,19 @@ class SliderController {
           "Save Configuration";
       }
     }
+
+    // Handle program execution messages
+    if (
+      data.includes("Starting loop program") ||
+      data.includes("Cycle") ||
+      data.includes("Loop program completed") ||
+      data.includes("RUN command received") ||
+      data.includes("Program type") ||
+      data.includes("Running loop program") ||
+      data.includes("ERROR")
+    ) {
+      this.log(`[Arduino] ${data}`);
+    }
   }
 
   async sendCommand(command) {

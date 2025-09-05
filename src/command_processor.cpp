@@ -60,8 +60,31 @@ void processCommand(String command) {
     char* comma = strchr(ptr, ',');
     if (comma) {
       int programId = atoi(comma + 1);
+      Serial.print(F("RUN command received for program "));
+      Serial.println(programId);
+      
+      // Reset pause state before running
+      programPaused = false;
+      
       displayMessage(F("Running"));
-      runProgram(programId);
+      
+      // Check program type and run appropriate function
+      uint8_t programType = getProgramType(programId);
+      Serial.print(F("Program type: "));
+      Serial.println(programType);
+      
+      if (programType == PROGRAM_TYPE_LOOP) {
+        Serial.println(F("Running loop program"));
+        runLoopProgram(programId);
+        displayMessage(F("Loop Done"));
+      } else if (programType == PROGRAM_TYPE_COMPLEX) {
+        Serial.println(F("Running complex program"));
+        runProgram(programId);
+        displayMessage(F("Program Done"));
+      } else {
+        Serial.println(F("Invalid program type"));
+        displayMessage(F("Invalid Program"));
+      }
     }
   }
   else if (c == 'S' && *(ptr+1) == 'T') {
@@ -70,6 +93,7 @@ void processCommand(String command) {
       displayMessage(F("Start"));
     } else if (*(ptr+2) == 'O') { // STOP
       programRunning = false;
+      programPaused = false; // Also reset pause state
       displayMessage(F("Stop"));
     }
   }
@@ -84,6 +108,8 @@ void processCommand(String command) {
     currentPosition = 0;
   }
   else if (c == 'L' && *(ptr+1) == 'O' && *(ptr+2) == 'O' && *(ptr+3) == 'P') { // LOOP_PROGRAM
+    Serial.println(F("LOOP_PROGRAM command received"));
+    
     // Parse: LOOP_PROGRAM,slot,name,steps,delay,delayUnit,cycles
     char* comma1 = strchr(ptr, ',');
     if (!comma1) return;
@@ -108,6 +134,19 @@ void processCommand(String command) {
     uint8_t delayUnit = atoi(comma5 + 1);
     uint8_t cycles = atoi(comma6 + 1);
 
+    Serial.print(F("Parsed: ID="));
+    Serial.print(programId);
+    Serial.print(F(", Name="));
+    Serial.print(programName);
+    Serial.print(F(", Steps="));
+    Serial.print(steps);
+    Serial.print(F(", Delay="));
+    Serial.print(delayMs);
+    Serial.print(F(", Unit="));
+    Serial.print(delayUnit);
+    Serial.print(F(", Cycles="));
+    Serial.println(cycles);
+
     // Convert delay to milliseconds if needed
     if (delayUnit == 0) { // microseconds
       delayMs = delayMs / 1000; // Convert to milliseconds
@@ -121,6 +160,7 @@ void processCommand(String command) {
     loopProg.speedUnit = delayUnit;
 
     saveLoopProgram(programId, programName, steps, delayMs, cycles, delayUnit);
+    Serial.println(F("Loop program saved"));
     displayMessage(F("Loop Saved"));
   }
 }

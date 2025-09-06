@@ -76,7 +76,9 @@ void processCommandCode(uint8_t cmdCode, char *data, int dataLen) {
     // Binary format: position(2), speed(4)
     uint16_t position = *(uint16_t *)data;
     uint32_t speedMs = *(uint32_t *)(data + 2);
-    displayMessage(F("Move"));
+    display.print(F("Move\n"));
+    display.print("P: " + String(position) + ", S: " + speedMs);
+    programRunning = true;
     moveToPositionWithSpeed(position, speedMs);
     break;
   }

@@ -544,7 +544,7 @@ class SliderController {
     const speed = parseInt(document.getElementById("manualSpeed").value);
 
     // Validate inputs
-    if (isNaN(position) || position < 0) {
+    if (isNaN(position)) {
       this.log("Error: Invalid position value");
       return;
     }

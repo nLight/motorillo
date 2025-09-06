@@ -19,7 +19,6 @@ enum ProgramType {
 struct LoopProgram {
   uint16_t steps;   // Number of steps to move forward/backward
   uint32_t delayMs; // Delay between steps in milliseconds
-  // cycles removed - programs now run infinitely until stopped
 };
 
 // Unified program header
@@ -38,9 +37,6 @@ const int MAX_PROGRAMS = 5; // Reduced from 10 to fit in 1024-byte EEPROM
 const int CONFIG_ADDR = 0;
 
 // Default motor settings (no longer configurable)
-const uint16_t DEFAULT_TOTAL_STEPS = 2000;
-const uint32_t DEFAULT_SPEED_MS = 1000;
-const uint8_t DEFAULT_ACCELERATION = 50;
 const uint8_t DEFAULT_MICROSTEPPING = 1;
 
 // Program storage - loop programs only!

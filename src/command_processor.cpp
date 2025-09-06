@@ -5,18 +5,13 @@
 
 // Command codes for memory efficiency
 enum CommandCode {
-  // CMD_CONFIG = 1,
   CMD_POS = 2,
   CMD_RUN = 3,
   CMD_START = 4,
   CMD_STOP = 5,
   CMD_HOME = 6,
-  // CMD_GET_CONFIG = 7, removed
   CMD_SETHOME = 8,
   CMD_LOOP_PROGRAM = 9,
-  // CMD_PROGRAM = 10,
-  // CMD_GET_LOOP_PROGRAM = 11, // removed
-  // CMD_GET_PROGRAM = 12, // removed
   CMD_GET_ALL_DATA = 13, // New: Bulk EEPROM load
   CMD_DEBUG_INFO = 14    // New: Debug info
 };
@@ -146,6 +141,7 @@ void processCommandCode(uint8_t cmdCode, char *data, int dataLen) {
     break;
   default:
     displayMessage(F("Unknown Cmd"));
+    Serial.println("Unknown Command"); // End with newline
     break;
   }
   }

@@ -10,5 +10,6 @@ extern bool programRunning;
 
 // Function declarations
 void processCommand(String command);
+void processCommandCode(uint8_t cmdCode, char *data, int dataLen);
 
 #endif // COMMAND_PROCESSOR_H

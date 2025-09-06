@@ -1,15 +1,15 @@
-#include <WebUSB.h>
-#include <EEPROM.h>
-#include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <EEPROM.h>
+#include <WebUSB.h>
+#include <Wire.h>
 
 // Include our modular headers
-#include "src/config_manager.h"
-#include "src/motor_control.h"
-#include "src/menu_system.h"
-#include "src/display_manager.h"
 #include "src/command_processor.h"
+#include "src/config_manager.h"
+#include "src/display_manager.h"
+#include "src/menu_system.h"
+#include "src/motor_control.h"
 
 /**
  * Creating an instance of WebUSBSerial will add an additional USB interface to
@@ -29,7 +29,8 @@ bool programmingMode = false;
 
 // WebUSB connection detection
 unsigned long bootTime = 0;
-const unsigned long serialWaitTime = 3000; // Wait 3 seconds for WebUSB connection
+const unsigned long serialWaitTime =
+    3000; // Wait 3 seconds for WebUSB connection
 bool serialCheckComplete = false;
 
 // Main program variables
@@ -40,7 +41,8 @@ void setup() {
   // Always start Serial for WebUSB
   Serial.begin(9600);
   bootTime = millis();
-  programmingMode = false; // Start in standalone mode, will switch if WebUSB connects
+  programmingMode =
+      false; // Start in standalone mode, will switch if WebUSB connects
 
   // Setup all modules
   setupMotorPins();
@@ -63,9 +65,6 @@ void loop() {
       // WebUSB is available, switch to programming mode
       if (!programmingMode) {
         programmingMode = true;
-        // Removed ready message to save space
-        // Serial.write(F("Ready\r\n> "));
-        // Serial.flush();
       }
     } else if (millis() - bootTime >= serialWaitTime) {
       // Timeout reached, finalize mode
@@ -84,13 +83,12 @@ void loop() {
     if (inMenuMode) {
       exitMenuMode();
     }
-    // Removed OK message to save space
-    // Serial.write(F("OK!\r\n> "));
-    // Serial.flush();
+    Serial.write("Ok\n");
+    Serial.flush();
   }
 
   // Check button state (with debouncing)
-  if(!programmingMode) {
+  if (!programmingMode) {
     checkButton();
   }
 
@@ -101,10 +99,30 @@ void loop() {
   }
 
   if (programmingMode && Serial && Serial.available()) {
-    String command = Serial.readStringUntil('\n');
-    command.trim();
-    processCommand(command);
-    // Removed Serial.flush() to save space
+    // Check if this is a binary command (first byte < 20)
+    uint8_t firstByte = Serial.peek();
+
+    if (firstByte < 20) {
+      // Binary command - read command code
+      uint8_t cmdCode = Serial.read();
+
+      // Read all available data as binary payload
+      uint8_t data[64];
+      int dataLen = 0;
+      delay(1); // Small delay to ensure all data is available
+
+      while (Serial.available() && dataLen < sizeof(data)) {
+        data[dataLen++] = Serial.read();
+      }
+
+      // Process the binary command
+      processCommandCode(cmdCode, (char *)data, dataLen);
+    } else {
+      // Text command - read until newline
+      String command = Serial.readStringUntil('\n');
+      command.trim();
+      processCommand(command);
+    }
   } else if (!programmingMode && programRunning) {
     executeStoredProgram();
   } else {

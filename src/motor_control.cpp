@@ -8,8 +8,7 @@ extern bool programPaused;
 extern bool programRunning;
 
 // Setup motor control pins
-void setupMotorPins()
-{
+void setupMotorPins() {
   pinMode(STEP_PIN, OUTPUT);
   pinMode(DIR_PIN, OUTPUT);
   pinMode(MS1_PIN, OUTPUT);
@@ -18,8 +17,7 @@ void setupMotorPins()
 }
 
 // Set microstepping mode using MS pins
-void setMicrostepping(uint8_t mode)
-{
+void setMicrostepping(uint8_t mode) {
   // TODO: TMC2209 1/16 step
   digitalWrite(MS1_PIN, LOW);
   digitalWrite(MS2_PIN, LOW);
@@ -61,24 +59,23 @@ void setMicrostepping(uint8_t mode)
 // Motor control functions
 
 // Move to position with specified speed (in milliseconds)
-void moveToPositionWithSpeed(long targetPosition, uint32_t speedMs)
-{
+void moveToPositionWithSpeed(long targetPosition, uint32_t speedMs) {
   long stepsToMove = abs(targetPosition - currentPosition);
   bool direction = targetPosition > currentPosition;
 
-  // Adjust for microstepping - need more pulses but faster timing to maintain same speed
-  long actualStepsToMove = stepsToMove * config.microstepping;
-  uint32_t adjustedSpeedMs = speedMs / config.microstepping;
+  // Adjust for microstepping - need more pulses but faster timing to maintain
+  // same speed
+  long actualStepsToMove = stepsToMove * DEFAULT_MICROSTEPPING;
+  uint32_t adjustedSpeedMs = speedMs / DEFAULT_MICROSTEPPING;
 
   digitalWrite(DIR_PIN, direction ? HIGH : LOW);
 
   // Simplified acceleration (removed complex calculations to save space)
-  for (long i = 0; i < actualStepsToMove; i++)
-  {
+  for (long i = 0; i < actualStepsToMove; i++) {
     // Check for pause request during movement
-    if (programPaused)
-    {
-      currentPosition += direction ? (i / config.microstepping) : -(i / config.microstepping);
+    if (programPaused) {
+      currentPosition += direction ? (i / DEFAULT_MICROSTEPPING)
+                                   : -(i / DEFAULT_MICROSTEPPING);
       return;
     }
 
@@ -92,16 +89,13 @@ void moveToPositionWithSpeed(long targetPosition, uint32_t speedMs)
 }
 
 // Run a stored program (legacy complex program)
-void runProgram(uint8_t programId)
-{
+void runProgram(uint8_t programId) {
   MovementStep steps[MAX_STEPS_PER_PROGRAM];
   uint8_t stepCount = loadComplexProgram(programId, steps);
 
-  for (int i = 0; i < stepCount; i++)
-  {
+  for (int i = 0; i < stepCount; i++) {
     // Check if we should pause before starting this step
-    if (programPaused)
-    {
+    if (programPaused) {
       return; // Exit if paused
     }
 
@@ -109,19 +103,15 @@ void runProgram(uint8_t programId)
     moveToPositionWithSpeed(steps[i].position, steps[i].speed);
 
     // Check if we got paused during movement
-    if (programPaused)
-    {
+    if (programPaused) {
       return; // Exit if paused during movement
     }
 
     // Handle pause time with pause checking
-    if (steps[i].pauseMs > 0)
-    {
+    if (steps[i].pauseMs > 0) {
       unsigned long pauseStart = millis();
-      while (millis() - pauseStart < steps[i].pauseMs)
-      {
-        if (programPaused)
-        {
+      while (millis() - pauseStart < steps[i].pauseMs) {
+        if (programPaused) {
           return; // Exit if paused during pause
         }
         delay(10); // Small delay to prevent tight loop
@@ -131,35 +121,31 @@ void runProgram(uint8_t programId)
 }
 
 // Run a loop program (forward/backward cycles)
-void runLoopProgram(uint8_t programId)
-{
+void runLoopProgram(uint8_t programId) {
   LoopProgram loopProg;
-  if (!loadLoopProgram(programId, &loopProg))
-  {
-    Serial.println(F("ERROR: Failed to load loop program"));
+  if (!loadLoopProgram(programId, &loopProg)) {
+    Serial.println("ERROR: Failed to load loop program");
     return; // Failed to load loop program
   }
 
-  // Serial.print(F("Starting loop program: "));
+  // Serial.print("Starting loop program: "));
   // Serial.print(loopProg.steps);
-  // Serial.print(F(" steps, "));
+  // Serial.print(" steps, "));
   // Serial.print(loopProg.delayMs);
-  // Serial.print(F("ms delay, "));
+  // Serial.print("ms delay, "));
   // Serial.print(loopProg.cycles);
   // Serial.println(F(" cycles"));
 
-  for (int cycle = 0; cycle < loopProg.cycles; cycle++)
-  {
+  for (int cycle = 0; cycle < loopProg.cycles; cycle++) {
     // Check if we should pause before starting this cycle
-    if (programPaused)
-    {
-      Serial.println(F("Program paused"));
+    if (programPaused) {
+      Serial.println("Program paused");
       return; // Exit if paused
     }
 
-    // Serial.print(F("Cycle "));
+    // Serial.print("Cycle "));
     // Serial.print(cycle + 1);
-    // Serial.print(F("/"));
+    // Serial.print("/"));
     // Serial.print(loopProg.cycles);
     // Serial.println(F(" - Forward"));
 
@@ -168,27 +154,25 @@ void runLoopProgram(uint8_t programId)
     moveToPositionWithSpeed(targetPosition, loopProg.delayMs);
 
     // Check if we got paused during forward movement
-    if (programPaused)
-    {
-      Serial.println(F("Program paused during forward movement"));
+    if (programPaused) {
+      Serial.println("Program paused during forward movement");
       return; // Exit if paused during movement
     }
 
     // Brief pause at end of forward movement
     delay(100);
 
-    Serial.print(F("Cycle "));
+    Serial.print("Cycle ");
     Serial.print(cycle + 1);
-    Serial.println(F(" - Backward"));
+    Serial.println(" - Backward");
 
     // Move backward
     targetPosition = currentPosition - loopProg.steps;
     moveToPositionWithSpeed(targetPosition, loopProg.delayMs);
 
     // Check if we got paused during backward movement
-    if (programPaused)
-    {
-      Serial.println(F("Program paused during backward movement"));
+    if (programPaused) {
+      Serial.println("Program paused during backward movement");
       return; // Exit if paused during movement
     }
 
@@ -196,62 +180,50 @@ void runLoopProgram(uint8_t programId)
     delay(100);
   }
 
-  Serial.println(F("Loop program completed"));
+  Serial.println("Loop program completed");
 }
 
 // Execute stored program (called from main loop)
-void executeStoredProgram()
-{
+void executeStoredProgram() {
   // Don't execute if paused
-  if (programPaused)
-  {
+  if (programPaused) {
     delay(100);
     return;
   }
 
-  if (config.programCount > 0)
-  {
+  if (config.programCount > 0) {
     // Run the selected program from menu, or first program if no menu selection
     int programToRun = 0;
 
     // If we came from menu selection, use the selected program
-    if (menuItemCount > 0 && currentMenuIndex < menuItemCount)
-    {
+    if (menuItemCount > 0 && currentMenuIndex < menuItemCount) {
       MenuItem selectedItem = menuItems[currentMenuIndex];
-      if (selectedItem.type == 0)
-      { // It's a program
+      if (selectedItem.type == 0) { // It's a program
         programToRun = selectedItem.id;
       }
     }
 
     // Check program type and run appropriate function
     uint8_t programType = getProgramType(programToRun);
-    if (programType == PROGRAM_TYPE_LOOP)
-    {
+    if (programType == PROGRAM_TYPE_LOOP) {
       runLoopProgram(programToRun);
-    }
-    else if (programType == PROGRAM_TYPE_COMPLEX)
-    {
+    } else if (programType == PROGRAM_TYPE_COMPLEX) {
       runProgram(programToRun);
     }
 
     // Check if this is a cycling program based on name
     char programName[9];
     loadProgramName(programToRun, programName);
-    bool isCycling = (strncmp(programName, "CYCLE", 5) == 0) || (strncmp(programName, "LOOP", 4) == 0);
+    bool isCycling = (strncmp(programName, "CYCLE", 5) == 0) ||
+                     (strncmp(programName, "LOOP", 4) == 0);
 
     // If it's a cycling program, restart it immediately
-    if (isCycling)
-    {
+    if (isCycling) {
       delay(500); // Brief pause between cycles
-    }
-    else
-    {
+    } else {
       delay(1000); // Brief pause between program cycles
     }
-  }
-  else
-  {
+  } else {
     // No program stored, just idle
     delay(100);
   }

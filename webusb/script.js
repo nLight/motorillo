@@ -4,18 +4,13 @@ class SliderController {
     this.connected = false;
 
     // Command codes for memory efficiency
-    this.CMD_CONFIG = 1;
     this.CMD_POS = 2;
     this.CMD_RUN = 3;
     this.CMD_START = 4;
     this.CMD_STOP = 5;
     this.CMD_HOME = 6;
-    this.CMD_GET_CONFIG = 7;
     this.CMD_SETHOME = 8;
     this.CMD_LOOP_PROGRAM = 9;
-    this.CMD_PROGRAM = 10;
-    this.CMD_GET_LOOP_PROGRAM = 11; // Request loop program data
-    this.CMD_GET_PROGRAM = 12; // Request complex program data
     this.CMD_GET_ALL_DATA = 13; // Request all EEPROM data
     this.CMD_DEBUG_INFO = 14; // Request debug information
 
@@ -49,14 +44,6 @@ class SliderController {
       );
     });
 
-    // Forms
-    document
-      .getElementById("configForm")
-      .addEventListener("submit", (e) => this.handleConfigSubmit(e));
-    document
-      .getElementById("loadConfigBtn")
-      .addEventListener("click", () => this.loadConfiguration());
-
     // Manual controls
     document
       .getElementById("startBtn")
@@ -76,17 +63,11 @@ class SliderController {
 
     // Program builder
     document
-      .getElementById("addStep")
-      .addEventListener("click", () => this.addProgramStep());
-    document
       .getElementById("saveProgram")
       .addEventListener("click", () => this.saveProgram());
     document
       .getElementById("testProgram")
       .addEventListener("click", () => this.testProgram());
-    document
-      .getElementById("loadProgram")
-      .addEventListener("click", () => this.loadProgram());
     document
       .getElementById("loadAllFromEEPROM")
       .addEventListener("click", () => this.requestAllDataFromEEPROM());
@@ -94,22 +75,10 @@ class SliderController {
       .getElementById("clearSteps")
       .addEventListener("click", () => this.clearSteps());
 
-    // Program type switching
-    document
-      .getElementById("complexProgramBtn")
-      .addEventListener("click", () => this.switchProgramType("complex"));
-    document
-      .getElementById("loopProgramBtn")
-      .addEventListener("click", () => this.switchProgramType("loop"));
-
-    // Initialize with one step
-    this.addProgramStep();
-
     // Initialize program storage
     this.programs = {}; // Store programs locally for editing
     this.programNames = {}; // Store program names locally
     this.loopPrograms = {}; // Store loop programs locally
-    this.currentProgramType = "complex"; // Track current program type
 
     // Load saved program names from localStorage
     this.loadProgramNames();
@@ -158,13 +127,9 @@ class SliderController {
       this.updateConnectionStatus(true);
       this.log("Connected to slider controller");
 
-      // Automatically load configuration from Arduino
+      // Load all EEPROM data in bulk
       setTimeout(() => {
-        this.loadConfiguration();
-        // Also load all EEPROM data in bulk
-        setTimeout(() => {
-          this.requestAllDataFromEEPROM();
-        }, 500);
+        this.requestAllDataFromEEPROM();
       }, 1000); // Wait 1 second for Arduino to be ready
     } catch (error) {
       this.log(`Connection failed: ${error.message}`);
@@ -185,40 +150,11 @@ class SliderController {
     this.updateConnectionStatus(false);
   }
 
-  loadConfiguration() {
-    if (this.connected) {
-      this.sendCommand(this.CMD_GET_CONFIG);
-      this.log("Loading configuration from Arduino...");
-
-      // Show loading indicator
-      const configForm = document.getElementById("configForm");
-      const originalText = configForm.querySelector(
-        'button[type="submit"]'
-      ).textContent;
-      configForm.querySelector('button[type="submit"]').textContent =
-        "Loading...";
-
-      // Reset button text after 3 seconds
-      setTimeout(() => {
-        configForm.querySelector('button[type="submit"]').textContent =
-          originalText;
-      }, 3000);
-    }
-  }
-
   setupDataListener() {
-    // WebUSB handles data reception through the onReceive callback
+    // WebUSB serial interface data reception
     this.port.onReceive = (data) => {
-      this.log("Data received:", data);
-      const decoder = new TextDecoder();
-      const text = decoder.decode(data);
-      const lines = text.split("\n");
-
-      for (const line of lines) {
-        if (line.trim()) {
-          this.handleIncomingData(line.trim());
-        }
-      }
+      console.log("Received data:", data);
+      this.handleIncomingData(data);
     };
 
     this.port.onReceiveError = (error) => {
@@ -227,40 +163,44 @@ class SliderController {
   }
 
   handleIncomingData(data) {
-    // Check if this is binary data (first byte < 32, not printable ASCII)
-    if (data.length > 0 && data.charCodeAt(0) < 32) {
-      this.handleBinaryData(data);
-      return;
+    // Handle WebUSB serial interface data (DataView/ArrayBuffer)
+    let textData;
+    let isBinary = false;
+
+    if (data instanceof DataView || data instanceof ArrayBuffer) {
+      // Convert to Uint8Array for processing
+      const uint8Data = new Uint8Array(
+        data instanceof ArrayBuffer ? data : data.buffer
+      );
+
+      // Check if this looks like binary data (first byte < 32 or very long)
+      if (
+        uint8Data.length > 0 &&
+        (uint8Data[0] < 32 || uint8Data.length > 50)
+      ) {
+        isBinary = true;
+        this.handleBinaryData(uint8Data);
+        return;
+      }
+
+      // Convert to string for text processing
+      const decoder = new TextDecoder();
+      textData = decoder.decode(uint8Data);
+    } else {
+      textData = data;
     }
 
-    this.log(`Received: ${data}`);
-
-    // Handle configuration data
-    if (data.startsWith("CONFIG,")) {
-      const parts = data.split(",");
-      if (parts.length >= 4) {
-        const totalSteps = parts[1];
-        const speed = parts[2];
-        const acceleration = parts[3];
-        const microstepping = parts[4];
-
-        // Populate form fields
-        document.getElementById("totalSteps").value = totalSteps;
-        document.getElementById("defaultSpeed").value = speed;
-        document.getElementById("acceleration").value = acceleration;
-        document.getElementById("microstepping").value = microstepping;
-
-        this.log(
-          `Configuration loaded: ${totalSteps} steps, ${speed} speed, ${acceleration} accel, ${microstepping}x microstepping`
-        );
-
-        // Reset button text
-        const configForm = document.getElementById("configForm");
-        configForm.querySelector('button[type="submit"]').textContent =
-          "Save Configuration";
+    // Process text data line by line
+    const lines = textData.split("\n");
+    for (const line of lines) {
+      if (line.trim()) {
+        this.log(line.trim());
+        this.processTextData(line.trim());
       }
     }
+  }
 
+  processTextData(data) {
     // Handle program execution messages
     if (
       data.includes("Starting loop program") ||
@@ -399,33 +339,7 @@ class SliderController {
 
     let offset = 0;
 
-    // Parse config (8 bytes: totalSteps(2), speed(4), acceleration(1), microstepping(1))
-    const view = new DataView(bytes.buffer, offset);
-    const totalSteps = view.getUint16(0, true);
-    const speed = view.getUint32(2, true);
-    const acceleration = bytes[offset + 6];
-    const microstepping = bytes[offset + 7];
-
-    // Update config UI
-    document.getElementById("totalSteps").value = totalSteps;
-    document.getElementById("speed").value = speed;
-    document.getElementById("acceleration").value = acceleration;
-    document.getElementById("microstepping").value = microstepping;
-
-    // Store config in localStorage
-    localStorage.setItem(
-      "sliderConfig",
-      JSON.stringify({
-        totalSteps,
-        speed,
-        acceleration,
-        microstepping,
-      })
-    );
-
-    offset += 8;
-
-    // Parse program count
+    // Parse program count (first byte now)
     const programCount = bytes[offset];
     offset += 1;
 
@@ -548,28 +462,6 @@ class SliderController {
       .querySelectorAll(".tab-content")
       .forEach((content) => content.classList.remove("active"));
     document.getElementById(tabName).classList.add("active");
-  }
-
-  handleConfigSubmit(e) {
-    e.preventDefault();
-    const totalSteps = parseInt(document.getElementById("totalSteps").value);
-    const speed = parseInt(document.getElementById("defaultSpeed").value);
-    const acceleration = parseInt(
-      document.getElementById("acceleration").value
-    );
-    const microstepping = parseInt(
-      document.getElementById("microstepping").value
-    );
-
-    // Binary format: totalSteps(2), speed(4), acceleration(1), microstepping(1)
-    const buffer = new ArrayBuffer(8);
-    const view = new DataView(buffer);
-    view.setUint16(0, totalSteps, true); // little-endian
-    view.setUint32(2, speed, true);
-    view.setUint8(6, acceleration);
-    view.setUint8(7, microstepping);
-
-    this.sendCommand(this.CMD_CONFIG, new Uint8Array(buffer));
   }
 
   handleMove() {

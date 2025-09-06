@@ -4,14 +4,10 @@
 #include <Arduino.h>
 #include <EEPROM.h>
 
-// Configuration structure
+// Simplified configuration structure - only stores program count
 struct SliderConfig {
   uint16_t magic;            // Magic number for validation
-  uint16_t totalSteps;       // Total steps for full slider travel
-  uint32_t speed;            // Default speed value (milliseconds)
-  uint8_t acceleration;      // Acceleration steps
   uint8_t programCount;      // Number of stored programs
-  uint8_t microstepping;     // Microstepping mode
 };
 
 // Program types
@@ -49,6 +45,12 @@ const uint16_t CONFIG_MAGIC = 0xA5C3;
 const int MAX_PROGRAMS = 5;  // Reduced from 10 to fit in 1024-byte EEPROM
 const int MAX_STEPS_PER_PROGRAM = 10; // For complex programs
 const int CONFIG_ADDR = 0;
+
+// Default motor settings (no longer configurable)
+const uint16_t DEFAULT_TOTAL_STEPS = 2000;
+const uint32_t DEFAULT_SPEED_MS = 1000;
+const uint8_t DEFAULT_ACCELERATION = 50;
+const uint8_t DEFAULT_MICROSTEPPING = 1;
 
 // Program storage - much more efficient now!
 // Loop programs: ~16 bytes each

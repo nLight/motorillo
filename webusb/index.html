@@ -18,62 +18,14 @@
 
         <main>
             <div class="tabs">
-                <button class="tab-btn active" data-tab="config">Configuration</button>
-                <button class="tab-btn" data-tab="program">Program Mode</button>
+                <button class="tab-btn active" data-tab="program">Program Mode</button>
                 <button class="tab-btn" data-tab="control">Manual Control</button>
             </div>
 
-            <!-- Configuration Tab -->
-            <div id="config" class="tab-content active">
-                <h2>Slider Configuration</h2>
-                <form id="configForm">
-                    <div class="form-group">
-                        <label for="totalSteps">Total Steps (Rail Length):</label>
-                        <input type="number" id="totalSteps" value="2000" min="100" max="10000">
-                        <span class="help">Maximum steps for full slider travel</span>
-                    </div>
-                    <div class="form-group">
-                        <label for="defaultSpeed">Default Speed (milliseconds):</label>
-                        <input type="number" id="defaultSpeed" value="1000" min="1">
-                        <span class="help">Speed in milliseconds per step (1-4,294,967,295ms)</span>
-                    </div>
-                    <div class="form-group">
-                        <label for="acceleration">Acceleration Steps:</label>
-                        <input type="number" id="acceleration" value="50" min="0" max="200">
-                        <span class="help">Steps for smooth start/stop</span>
-                    </div>
-                    <div class="form-group">
-                        <label for="microstepping">Microstepping Mode:</label>
-                        <select id="microstepping">
-                            <option value="1">1 - Full Step (Max Torque)</option>
-                            <option value="2">1/2 - Half Step</option>
-                            <option value="4">1/4 - Quarter Step</option>
-                            <option value="8">1/8 - Eighth Step (Quieter)</option>
-                            <option value="16">1/16 - Sixteenth Step (Smoothest)</option>
-                        </select>
-                        <span class="help">Higher values = smoother/quieter, lower values = more torque</span>
-                    </div>
-                    <button type="submit">Save Configuration</button>
-                    <button type="button" id="loadConfigBtn" style="background: #2196F3; margin-left: 10px;">Load from Arduino</button>
-                </form>
-            </div>
-
             <!-- Program Mode Tab -->
-            <div id="program" class="tab-content">
+            <div id="program" class="tab-content active">
                 <h2>Program Builder</h2>
-                <div class="help" style="background: #e3f2fd; padding: 1rem; margin-bottom: 1rem; border-radius: 4px;">
-                    <strong>💡 Cycling Programs:</strong> Name your program starting with "CYCLE" or "LOOP" (e.g., "CYCLE1H", "LOOP30M") to make it repeat automatically!
-                </div>
-                <div class="program-builder">
-                    <div class="program-type-selector">
-                        <label>Program Type:</label>
-                        <div class="program-type-buttons">
-                            <button id="complexProgramBtn" class="program-type-btn active">Complex Program</button>
-                            <button id="loopProgramBtn" class="program-type-btn">Loop Program</button>
-                        </div>
-                        <div class="help">Loop programs are much more memory efficient for forward/backward cycles</div>
-                    </div>
-                    
+                <div class="program-builder">                    
                     <div class="steps-container">
                         <div class="program-selector">
                             <label for="programSlot">Program Slot:</label>
@@ -96,15 +48,8 @@
                             <span class="help">Short descriptive name for easy identification</span>
                         </div>
                         
-                        <!-- Complex Program Builder -->
-                        <div id="complexProgramSection">
-                            <h3>Movement Steps</h3>
-                            <div id="stepsList"></div>
-                            <button id="addStep">Add Step</button>
-                        </div>
-                        
                         <!-- Loop Program Builder -->
-                        <div id="loopProgramSection" style="display: none;">
+                        <div id="loopProgramSection">
                             <h3>Loop Parameters</h3>
                             <div class="form-group">
                                 <label for="loopSteps">Steps per direction:</label>
@@ -114,10 +59,7 @@
                             <div class="form-group">
                                 <label for="loopDelay">Delay between steps (milliseconds):</label>
                                 <input type="number" id="loopDelay" value="1000" min="1">
-                                <span class="help">⚠️ This is the timing BETWEEN INDIVIDUAL MOTOR STEPS, not a pause between movements. Large values (>10s) will make movement very slow!</span>
-                                <div class="help" style="background: #fff3cd; padding: 0.5rem; margin-top: 0.5rem; border-radius: 4px; border-left: 4px solid #ffc107;">
-                                    <strong>💡 For long pauses between movements:</strong> Use "Complex Program" mode instead, where you can add pause steps between position changes.
-                                </div>
+                                <span class="help">⚠️ This is the timing BETWEEN INDIVIDUAL MOTOR STEPS, not a pause between movements.</span>
                             </div>
                             <div class="form-group">
                                 <label for="loopCycles">Number of cycles:</label>
@@ -130,7 +72,6 @@
                     <div class="program-actions">
                         <button id="saveProgram">Save Program</button>
                         <button id="testProgram">Test Program</button>
-                        <button id="loadProgram">Load Program</button>
                         <button id="loadAllFromEEPROM">Load All from EEPROM</button>
                         <button id="clearSteps">Clear Steps</button>
                     </div>

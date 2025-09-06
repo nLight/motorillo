@@ -1,8 +1,8 @@
 #ifndef MOTOR_CONTROL_H
 #define MOTOR_CONTROL_H
 
-#include <Arduino.h>
 #include "menu_system.h"
+#include <Arduino.h>
 
 // Pin definitions
 const int MS1_PIN = 4;
@@ -12,8 +12,7 @@ const int STEP_PIN = 7;
 const int DIR_PIN = 8;
 
 // Microstepping modes
-enum MicrostepMode
-{
+enum MicrostepMode {
   FULL_STEP = 1,
   HALF_STEP = 2,
   QUARTER_STEP = 4,
@@ -29,6 +28,7 @@ extern int currentMenuIndex;
 // Function declarations
 void setupMotorPins();
 void setMicrostepping(uint8_t mode);
+void yieldingDelay(uint32_t delayMs); // Non-blocking delay with task yielding
 void moveToPositionWithSpeed(long targetPosition, uint32_t speedMs);
 void runProgram(uint8_t programId);
 void runLoopProgram(uint8_t programId);

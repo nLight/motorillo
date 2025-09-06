@@ -8,6 +8,33 @@ extern long currentPosition;
 extern bool programPaused;
 extern bool programRunning;
 
+// Yielding delay function - breaks long delays into chunks to allow other tasks
+void yieldingDelay(uint32_t delayMs) {
+  const uint32_t YIELD_CHUNK_MS = 10; // Check every 10ms for responsiveness
+
+  if (delayMs <= YIELD_CHUNK_MS) {
+    // Short delay - just use regular delay
+    delay(delayMs);
+    checkButton(); // Check for pause/stop button
+    return;
+  }
+
+  uint32_t remaining = delayMs;
+  while (remaining > 0 && !programPaused && programRunning) {
+    uint32_t thisChunk = min(remaining, YIELD_CHUNK_MS);
+    delay(thisChunk);
+    remaining -= thisChunk;
+
+    // Yield to other tasks every chunk
+    checkButton(); // Check for pause/stop button
+
+    // Early exit if paused or stopped
+    if (programPaused || !programRunning) {
+      break;
+    }
+  }
+}
+
 // Setup motor control pins
 void setupMotorPins() {
   pinMode(STEP_PIN, OUTPUT);
@@ -81,12 +108,14 @@ void moveToPositionWithSpeed(long targetPosition, uint32_t speedMs) {
     }
 
     digitalWrite(STEP_PIN, HIGH);
-    delay(adjustedSpeedMs);
+    yieldingDelay(adjustedSpeedMs);
     digitalWrite(STEP_PIN, LOW);
-    delay(adjustedSpeedMs);
+    yieldingDelay(adjustedSpeedMs);
 
-    updateDisplay(i);
-    checkButton();
+    // Update display less frequently to reduce overhead
+    if (i % 10 == 0) {
+      updateDisplay(i);
+    }
   }
 
   currentPosition = targetPosition;
@@ -111,8 +140,8 @@ void runLoopProgram(uint8_t programId) {
       break;
     }
 
-    // Brief pause at end of forward movement
-    delay(100);
+    // Brief pause at end of forward movement with yielding
+    yieldingDelay(100);
 
     // Backward movement
     targetPosition = currentPosition - loopProg.steps;
@@ -123,8 +152,8 @@ void runLoopProgram(uint8_t programId) {
       break;
     }
 
-    // Brief pause at end of backward movement
-    delay(100);
+    // Brief pause at end of backward movement with yielding
+    yieldingDelay(100);
   }
 
   if (programPaused) {
@@ -138,7 +167,7 @@ void runLoopProgram(uint8_t programId) {
 void executeStoredProgram() {
   // Don't execute if paused
   if (programPaused) {
-    delay(100);
+    yieldingDelay(100); // Yielding delay while paused
     return;
   }
 
@@ -163,7 +192,7 @@ void executeStoredProgram() {
       return;
     }
   } else {
-    // No program stored, just idle
-    delay(100);
+    // No program stored, just idle with yielding
+    yieldingDelay(100);
   }
 }

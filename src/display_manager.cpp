@@ -80,6 +80,21 @@ void displayMessage(const __FlashStringHelper *message, int duration) {
   }
 }
 
+// Overloaded version for regular C strings
+void displayMessage(const String message, int duration) {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 4);
+  display.print(message);
+  display.display();
+
+  if (duration > 0) {
+    delay(duration);
+    updateDisplay();
+  }
+}
+
 // Play boot animation
 void playBootAnimation() {
   display.clearDisplay();

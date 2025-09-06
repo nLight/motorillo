@@ -27,6 +27,7 @@ extern bool programPaused;
 void setupDisplay();
 void updateDisplay(long position = currentPosition);
 void displayMessage(const __FlashStringHelper *message, int duration = 1000);
+void displayMessage(const String message, int duration = 1000);
 void playBootAnimation();
 void displayMenu();
 void displayPauseMenu();

@@ -281,25 +281,28 @@ class SliderController {
       return;
     }
 
-    // Handle individual programs: PROG:id,name,steps,delayMs,cycles
+    // Handle individual programs: PROG:id,name,steps,delayMs
+    // Note: cycles removed - programs now run infinitely
     if (data.startsWith("PROG:")) {
       const parts = data.substring(5).split(",");
-      if (parts.length >= 5) {
+      if (parts.length >= 4) {
         const programId = parseInt(parts[0]);
         const name = parts[1].trim();
         const steps = parseInt(parts[2]);
         const delayMs = parseInt(parts[3]);
-        const cycles = parseInt(parts[4]);
+        // cycles removed - programs run infinitely
 
         console.log(
-          `Loaded program ${programId}: "${name}" (${steps}steps, ${delayMs}ms, ${cycles}cycles)`
+          `Loaded program ${programId}: "${name}" (${steps}steps, ${delayMs}ms, infinite)`
         );
 
-        this.loopPrograms[programId] = { steps, delay: delayMs, cycles };
+        this.loopPrograms[programId] = { steps, delay: delayMs };
         this.programNames[programId] = name;
 
         this.log(
-          `Loaded Loop Program "${name}" from EEPROM (slot ${programId + 1})`
+          `Loaded Infinite Loop Program "${name}" from EEPROM (slot ${
+            programId + 1
+          })`
         );
 
         // Update the UI if this is the currently selected program
@@ -310,7 +313,6 @@ class SliderController {
           document.getElementById("programName").value = name;
           document.getElementById("loopSteps").value = steps;
           document.getElementById("loopDelay").value = delayMs;
-          document.getElementById("loopCycles").value = cycles;
         }
 
         // Save to localStorage after each program
@@ -354,9 +356,9 @@ class SliderController {
     const programId = bytes[0];
     this.log(`Received binary data for program ${programId}`);
 
-    // Check if this is loop program data (16 bytes expected for loop programs)
-    if (data.length === 17) {
-      // 16 bytes + newline
+    // Check if this is loop program data (15 bytes expected for loop programs without cycles)
+    if (data.length === 15) {
+      // 15 bytes (no cycles)
       this.handleLoopProgramBinary(bytes);
     }
   }
@@ -373,14 +375,14 @@ class SliderController {
     }
     name = name.trim() || `PGM${programId + 1}`;
 
-    // Extract loop data (bytes 9-15)
+    // Extract loop data (bytes 9-14, cycles removed)
     const view = new DataView(bytes.buffer, 9);
     const steps = view.getUint16(0, true);
     const delayMs = view.getUint32(2, true);
-    const cycles = bytes[15];
+    // cycles removed - programs run infinitely
 
     // Store in local storage
-    this.loopPrograms[programId] = { steps, delay: delayMs, cycles };
+    this.loopPrograms[programId] = { steps, delay: delayMs };
     this.programNames[programId] = name;
     this.saveProgramNames();
 
@@ -388,10 +390,12 @@ class SliderController {
     document.getElementById("programName").value = name;
     document.getElementById("loopSteps").value = steps;
     document.getElementById("loopDelay").value = delayMs;
-    document.getElementById("loopCycles").value = cycles;
+    // cycles field removed from UI
 
     this.log(
-      `Loaded Loop Program "${name}" from EEPROM (slot ${programId + 1})`
+      `Loaded Infinite Loop Program "${name}" from EEPROM (slot ${
+        programId + 1
+      })`
     );
   }
 
@@ -448,8 +452,8 @@ class SliderController {
       offset += 10; // programId(1) + type(1) + name(8)
 
       if (programType === 0) {
-        // Loop program - need 7 more bytes
-        if (offset + 7 > bytes.length) {
+        // Loop program - need 6 more bytes (removed cycles)
+        if (offset + 6 > bytes.length) {
           this.log(`ERROR: Not enough data for loop program ${programId}`);
           break;
         }
@@ -457,12 +461,14 @@ class SliderController {
         const loopView = new DataView(bytes.buffer, offset);
         const steps = loopView.getUint16(0, true);
         const delayMs = loopView.getUint32(2, true);
-        const cycles = bytes[offset + 6];
+        // cycles removed - programs run infinitely
 
-        this.loopPrograms[programId] = { steps, delay: delayMs, cycles };
-        offset += 7; // steps(2) + delayMs(4) + cycles(1)
+        this.loopPrograms[programId] = { steps, delay: delayMs };
+        offset += 6; // steps(2) + delayMs(4)
 
-        this.log(`Loaded Loop Program "${name}" (slot ${programId + 1})`);
+        this.log(
+          `Loaded Infinite Loop Program "${name}" (slot ${programId + 1})`
+        );
       } else {
         this.log(
           `WARNING: Skipping unsupported program type ${programType} for "${name}"`
@@ -588,29 +594,29 @@ class SliderController {
     // Limit program name to 8 characters
     const limitedName = programName.substring(0, 8).toUpperCase();
 
-    // Save loop program (only type supported)
+    // Save loop program (only type supported, runs infinitely)
     const steps = document.getElementById("loopSteps").value;
     const delay = document.getElementById("loopDelay").value;
-    const cycles = document.getElementById("loopCycles").value;
 
     // Warn about very large delays
     const delayValue = parseInt(delay);
     if (delayValue > 10000) {
       // More than 10 seconds
-      const totalTime = Math.round((parseInt(steps) * delayValue) / 1000);
+      const estimatedTime = Math.round((parseInt(steps) * delayValue) / 1000);
       if (
         !confirm(
-          `Warning: Large delay detected!\n\nTotal time per direction: ${totalTime} seconds (${Math.round(
-            totalTime / 60
-          )} minutes)\n\nAre you sure you want to continue?`
+          `Warning: Large delay detected!\n\nApproximate time per direction: ${estimatedTime} seconds (${Math.round(
+            estimatedTime / 60
+          )} minutes)\n\nProgram will run infinitely until manually stopped.\n\nAre you sure you want to continue?`
         )
       ) {
         return;
       }
     }
 
-    // Binary format: programId(1), name(8), steps(2), delayMs(4), cycles(1)
-    const buffer = new ArrayBuffer(16);
+    // Binary format: programId(1), name(8), steps(2), delayMs(4)
+    // Note: cycles removed - programs now run infinitely
+    const buffer = new ArrayBuffer(15);
     const view = new DataView(buffer);
     const encoder = new TextEncoder();
 
@@ -624,13 +630,12 @@ class SliderController {
 
     view.setUint16(9, parseInt(steps), true);
     view.setUint32(11, parseInt(delay), true);
-    view.setUint8(15, parseInt(cycles));
 
     this.sendCommand(this.CMD_LOOP_PROGRAM, new Uint8Array(buffer));
     this.log(
-      `Loop Program "${limitedName}" saved to slot ${
+      `Infinite Loop Program "${limitedName}" saved to slot ${
         parseInt(programSlot) + 1
-      } (${steps} steps, ${delay}ms delay, ${cycles} cycles)`
+      } (${steps} steps, ${delay}ms delay, runs until stopped)`
     );
   }
 
@@ -675,15 +680,13 @@ class SliderController {
     if (programData) {
       document.getElementById("loopSteps").value = programData.steps;
       document.getElementById("loopDelay").value = programData.delay;
-      document.getElementById("loopCycles").value = programData.cycles;
       console.log(
-        `Loaded program ${programSlot}: "${programName}" (${programData.steps}steps, ${programData.delay}ms, ${programData.cycles}cycles)`
+        `Loaded program ${programSlot}: "${programName}" (${programData.steps}steps, ${programData.delay}ms, infinite)`
       );
     } else {
       // Clear form fields if no program data exists
       document.getElementById("loopSteps").value = 1000;
       document.getElementById("loopDelay").value = 1000;
-      document.getElementById("loopCycles").value = 10;
       console.log(`No data for program slot ${programSlot}, using defaults`);
     }
   }

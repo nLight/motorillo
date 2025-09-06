@@ -36,7 +36,6 @@ void saveLoopProgram(uint8_t programId, const char *name, LoopProgram program) {
   // Save program header
   ProgramHeader header;
   header.type = PROGRAM_TYPE_LOOP;
-  header.cycles = program.cycles; // For loops, cycles field stores cycle count
   strncpy(header.name, name, 8);
   header.name[8] = '\0';
   EEPROM.put(addr, header);

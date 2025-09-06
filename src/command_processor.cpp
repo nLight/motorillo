@@ -49,7 +49,8 @@ void processCommandCode(uint8_t cmdCode, char *data, int dataLen) {
     currentPosition = 0;
     break;
   case CMD_LOOP_PROGRAM: {
-    // Binary format: programId(1), name(8), steps(2), delayMs(4), cycles(1)
+    // Binary format: programId(1), name(8), steps(2), delayMs(4)
+    // Note: cycles removed - programs now run infinitely
     uint8_t programId = *(uint8_t *)data;
     char programName[9];
     memcpy(programName, data + 1, 8);
@@ -57,12 +58,10 @@ void processCommandCode(uint8_t cmdCode, char *data, int dataLen) {
 
     uint16_t steps = *(uint16_t *)(data + 9);
     uint32_t delayMs = *(uint32_t *)(data + 11);
-    uint8_t cycles = *(uint8_t *)(data + 15);
 
     LoopProgram loopProg;
     loopProg.steps = steps;
     loopProg.delayMs = delayMs;
-    loopProg.cycles = cycles;
 
     saveLoopProgram(programId, programName, loopProg);
     displayMessage(F("Program Saved"));

@@ -13,7 +13,7 @@
 - 💾 **Persistent Storage**: Save up to 5 programs in EEPROM
 - ⚡ **Precision Control**: Customizable speed (1ms to 4.3M ms per step)
 - 🔄 **Auto-Recovery**: Graceful USB disconnection handling
-- 🎯 **Loop Programs**: Forward/backward motion with configurable cycles
+- 🎯 **Infinite Programs**: Forward/backward motion until manually stopped
 - 📊 **Real-time Feedback**: Live position and status updates
 
 ## 🚀 Quick Start
@@ -91,13 +91,13 @@ Arduino Leonardo/Micro:
 
 ## 🔧 Technical Specifications
 
-| Parameter          | Range                          | Default    |
-| ------------------ | ------------------------------ | ---------- |
-| **Speed Range**    | 1ms - 4,294,967,295ms per step | 1000ms     |
-| **Max Programs**   | 5 stored programs              | -          |
-| **Position Range** | 0 - 65,535 steps               | 2000 steps |
-| **Cycle Count**    | 1 - 255 cycles                 | 10 cycles  |
-| **Memory Usage**   | ~1KB EEPROM                    | -          |
+| Parameter          | Range                           | Default    |
+| ------------------ | ------------------------------- | ---------- |
+| **Speed Range**    | 1ms - 4,294,967,295ms per step  | 1000ms     |
+| **Max Programs**   | 5 stored programs               | -          |
+| **Position Range** | 0 - 65,535 steps                | 2000 steps |
+| **Loop Programs**  | Infinite until manually stopped | -          |
+| **Memory Usage**   | ~1KB EEPROM                     | -          |
 
 ## 🏗 Architecture
 

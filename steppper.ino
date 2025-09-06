@@ -78,9 +78,7 @@ void sendAllEEPROMData() {
       Serial.print(",");
       Serial.print(loopProg.steps);
       Serial.print(",");
-      Serial.print(loopProg.delayMs);
-      Serial.print(",");
-      Serial.println(loopProg.cycles);
+      Serial.println(loopProg.delayMs);
       Serial.flush();
       delay(50); // Allow each program to be processed
     }

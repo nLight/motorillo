@@ -15,18 +15,18 @@ enum ProgramType {
   PROGRAM_TYPE_LOOP = 0 // Simple forward/backward loop
 };
 
-// Loop program structure (for forward/backward cycles)
+// Loop program structure (for infinite forward/backward motion)
 struct LoopProgram {
   uint16_t steps;   // Number of steps to move forward/backward
   uint32_t delayMs; // Delay between steps in milliseconds
-  uint8_t cycles;   // Number of forward/backward cycles
+  // cycles removed - programs now run infinitely until stopped
 };
 
 // Unified program header
 struct ProgramHeader {
-  uint8_t type;   // ProgramType (0=loop only)
-  uint8_t cycles; // Number of cycles (for loop programs)
-  char name[9];   // Program name (8 chars + null)
+  uint8_t type;     // ProgramType (0=loop only)
+  uint8_t reserved; // Reserved for future use (was cycles)
+  char name[9];     // Program name (8 chars + null)
 };
 
 // Global configuration instance

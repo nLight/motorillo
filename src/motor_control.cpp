@@ -73,8 +73,8 @@ void moveToPositionWithSpeed(long targetPosition, uint32_t speedMs) {
 
   // Simplified acceleration (removed complex calculations to save space)
   for (long i = 0; i < actualStepsToMove; i++) {
-    // Check for pause request during movement
-    if (programPaused) {
+    // Check for pause/stop request during movement
+    if (programPaused || !programRunning) {
       currentPosition += direction ? (i / DEFAULT_MICROSTEPPING)
                                    : -(i / DEFAULT_MICROSTEPPING);
       return;
@@ -91,7 +91,7 @@ void moveToPositionWithSpeed(long targetPosition, uint32_t speedMs) {
   currentPosition = targetPosition;
 }
 
-// Run a loop program (forward/backward cycles)
+// Run a loop program (infinite forward/backward motion)
 void runLoopProgram(uint8_t programId) {
   LoopProgram loopProg;
   if (!loadLoopProgram(programId, &loopProg)) {
@@ -99,59 +99,38 @@ void runLoopProgram(uint8_t programId) {
     return; // Failed to load loop program
   }
 
-  // Serial.print("Starting loop program: "));
-  // Serial.print(loopProg.steps);
-  // Serial.print(" steps, "));
-  // Serial.print(loopProg.delayMs);
-  // Serial.print("ms delay, "));
-  // Serial.print(loopProg.cycles);
-  // Serial.println(F(" cycles"));
-
-  for (int cycle = 0; cycle < loopProg.cycles; cycle++) {
-    // Check if we should pause before starting this cycle
-    if (programPaused) {
-      Serial.println("Program paused");
-      return; // Exit if paused
-    }
-
-    // Serial.print("Cycle "));
-    // Serial.print(cycle + 1);
-    // Serial.print("/"));
-    // Serial.print(loopProg.cycles);
-    // Serial.println(F(" - Forward"));
-
-    // Move forward
+  // Run infinite cycles until stopped or paused
+  while (programRunning && !programPaused) {
+    // Forward movement
     long targetPosition = currentPosition + loopProg.steps;
     moveToPositionWithSpeed(targetPosition, loopProg.delayMs);
 
-    // Check if we got paused during forward movement
-    if (programPaused) {
-      Serial.println("Program paused during forward movement");
-      return; // Exit if paused during movement
+    // Check if we should stop/pause after forward movement
+    if (!programRunning || programPaused) {
+      break;
     }
 
     // Brief pause at end of forward movement
     delay(100);
 
-    Serial.print("Cycle ");
-    Serial.print(cycle + 1);
-    Serial.println(" - Backward");
-
-    // Move backward
+    // Backward movement
     targetPosition = currentPosition - loopProg.steps;
     moveToPositionWithSpeed(targetPosition, loopProg.delayMs);
 
-    // Check if we got paused during backward movement
-    if (programPaused) {
-      Serial.println("Program paused during backward movement");
-      return; // Exit if paused during movement
+    // Check if we should stop/pause after backward movement
+    if (!programRunning || programPaused) {
+      break;
     }
 
     // Brief pause at end of backward movement
     delay(100);
   }
 
-  Serial.println("Loop program completed");
+  if (programPaused) {
+    Serial.println("Program paused");
+  } else {
+    Serial.println("Program stopped");
+  }
 }
 
 // Execute stored program (called from main loop)

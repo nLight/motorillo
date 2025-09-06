@@ -43,6 +43,51 @@ bool wasInProgrammingMode = false;
 bool programRunning = false;
 bool programPaused = false;
 
+// Function to send all EEPROM data immediately on connection
+void sendAllEEPROMData() {
+  // Count valid programs (only loop programs)
+  uint8_t programCount = 0;
+  for (uint8_t i = 0; i < MAX_PROGRAMS; i++) {
+    uint8_t progType = getProgramType(i);
+    if (progType == PROGRAM_TYPE_LOOP) {
+      programCount++;
+    }
+  }
+
+  // Send program count first
+  Serial.print("PROGRAMS:");
+  Serial.println(programCount);
+  Serial.flush();
+  delay(100); // Allow program count to be processed
+
+  // Send each program as text
+  for (uint8_t i = 0; i < MAX_PROGRAMS; i++) {
+    uint8_t programType = getProgramType(i);
+    if (programType != PROGRAM_TYPE_LOOP)
+      continue;
+
+    char name[9];
+    loadProgramName(i, name);
+
+    LoopProgram loopProg;
+    if (loadLoopProgram(i, &loopProg)) {
+      Serial.print("PROG:");
+      Serial.print(i);
+      Serial.print(",");
+      Serial.print(name);
+      Serial.print(",");
+      Serial.print(loopProg.steps);
+      Serial.print(",");
+      Serial.print(loopProg.delayMs);
+      Serial.print(",");
+      Serial.println(loopProg.cycles);
+      Serial.flush();
+      delay(50); // Allow each program to be processed
+    }
+  }
+  Serial.flush();
+}
+
 void setup() {
   // Always start Serial for WebUSB
   Serial.begin(9600);
@@ -91,8 +136,10 @@ void loop() {
     if (inMenuMode) {
       exitMenuMode();
     }
-    Serial.write("Ok\n");
-    Serial.flush();
+
+    Serial.println("WebUSB Connected");
+    delay(100); // Brief stabilization delay
+    sendAllEEPROMData();
   }
 
   // Detect WebUSB disconnection
@@ -107,7 +154,6 @@ void loop() {
         enterMenuMode();
       }
       updateDisplay(); // Update display to show new mode
-      Serial.println("[DEBUG] WebUSB timeout - switched to standalone mode");
     }
   }
 

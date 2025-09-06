@@ -89,44 +89,8 @@ void processCommandCode(uint8_t cmdCode, char *data, int dataLen) {
     break;
   }
   case CMD_GET_ALL_DATA: {
-    // Send all EEPROM data in binary format for bulk loading
-    // Format: programCount(1) + programs(variable)
-
-    // Count valid programs (only loop programs)
-    uint8_t programCount = 0;
-    for (uint8_t i = 0; i < MAX_PROGRAMS; i++) {
-      uint8_t progType = getProgramType(i);
-      if (progType == PROGRAM_TYPE_LOOP) {
-        programCount++;
-      }
-    }
-
-    Serial.write(programCount);
-
-    // Send each program (only loop programs)
-    for (uint8_t i = 0; i < MAX_PROGRAMS; i++) {
-      uint8_t programType = getProgramType(i);
-      if (programType != PROGRAM_TYPE_LOOP)
-        continue;
-
-      // Program header: programId(1), type(1), name(8)
-      Serial.write(i);
-      Serial.write(programType);
-
-      char name[9];
-      loadProgramName(i, name);
-      Serial.write(name, 8);
-
-      // Loop program data: steps(2), delayMs(4), cycles(1)
-      LoopProgram loopProg;
-      if (loadLoopProgram(i, &loopProg)) {
-        Serial.write((uint8_t *)&loopProg.steps, 2);
-        Serial.write((uint8_t *)&loopProg.delayMs, 4);
-        Serial.write((uint8_t *)&loopProg.cycles, 1);
-      }
-    }
-
-    Serial.println(); // End with newline
+    // EEPROM data is now sent automatically on connection
+    Serial.println("EEPROM data already sent on connection");
     break;
   }
   case CMD_DEBUG_INFO: {

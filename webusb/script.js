@@ -83,6 +83,9 @@ class SliderController {
       this.loadProgramNameFromStorage();
     });
 
+    // Load initial program data for the currently selected slot
+    this.loadProgramNameFromStorage();
+
     // Load saved manual speed
     this.loadManualSpeed();
 
@@ -130,10 +133,8 @@ class SliderController {
       this.updateConnectionStatus(true);
       this.log("Connected to slider controller");
 
-      // Load all EEPROM data in bulk
-      setTimeout(() => {
-        this.requestAllDataFromEEPROM();
-      }, 1000); // Wait 1 second for Arduino to be ready
+      // EEPROM data will be sent automatically by Arduino on connection
+      // No need to request it
     } catch (error) {
       this.log(`Connection failed: ${error.message}`);
     }
@@ -274,6 +275,58 @@ class SliderController {
   }
 
   processTextData(data) {
+    // Handle program count
+    if (data.startsWith("PROGRAMS:")) {
+      const count = parseInt(data.substring(9));
+      console.log(`Expecting ${count} programs`);
+      // Clear existing programs
+      this.loopPrograms = {};
+      this.programNames = {};
+      return;
+    }
+
+    // Handle individual programs: PROG:id,name,steps,delayMs,cycles
+    if (data.startsWith("PROG:")) {
+      const parts = data.substring(5).split(",");
+      if (parts.length >= 5) {
+        const programId = parseInt(parts[0]);
+        const name = parts[1].trim();
+        const steps = parseInt(parts[2]);
+        const delayMs = parseInt(parts[3]);
+        const cycles = parseInt(parts[4]);
+
+        console.log(
+          `Loaded program ${programId}: "${name}" (${steps}steps, ${delayMs}ms, ${cycles}cycles)`
+        );
+
+        this.loopPrograms[programId] = { steps, delay: delayMs, cycles };
+        this.programNames[programId] = name;
+
+        this.log(
+          `Loaded Loop Program "${name}" from EEPROM (slot ${programId + 1})`
+        );
+
+        // Update the UI if this is the currently selected program
+        const currentSlot = parseInt(
+          document.getElementById("programSlot").value
+        );
+        if (programId === currentSlot) {
+          document.getElementById("programName").value = name;
+          document.getElementById("loopSteps").value = steps;
+          document.getElementById("loopDelay").value = delayMs;
+          document.getElementById("loopCycles").value = cycles;
+        }
+
+        // Save to localStorage after each program
+        this.saveProgramNames();
+        localStorage.setItem(
+          "sliderLoopPrograms",
+          JSON.stringify(this.loopPrograms)
+        );
+      }
+      return;
+    }
+
     // Handle program execution messages
     if (
       data.includes("Starting loop program") ||
@@ -615,9 +668,28 @@ class SliderController {
   }
 
   loadProgramNameFromStorage() {
-    const programSlot = document.getElementById("programSlot").value;
+    const programSlot = parseInt(document.getElementById("programSlot").value);
+
+    // Load program name
     const programName = this.programNames[programSlot] || "";
     document.getElementById("programName").value = programName;
+
+    // Load program data if it exists
+    const programData = this.loopPrograms[programSlot];
+    if (programData) {
+      document.getElementById("loopSteps").value = programData.steps;
+      document.getElementById("loopDelay").value = programData.delay;
+      document.getElementById("loopCycles").value = programData.cycles;
+      console.log(
+        `Loaded program ${programSlot}: "${programName}" (${programData.steps}steps, ${programData.delay}ms, ${programData.cycles}cycles)`
+      );
+    } else {
+      // Clear form fields if no program data exists
+      document.getElementById("loopSteps").value = 1000;
+      document.getElementById("loopDelay").value = 1000;
+      document.getElementById("loopCycles").value = 10;
+      console.log(`No data for program slot ${programSlot}, using defaults`);
+    }
   }
 
   saveProgramNames() {

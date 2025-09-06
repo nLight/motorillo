@@ -36,7 +36,7 @@ void saveLoopProgram(uint8_t programId, const char *name, LoopProgram program) {
   // Save program header
   ProgramHeader header;
   header.type = PROGRAM_TYPE_LOOP;
-  header.stepCount = program.cycles; // For loops, stepCount = cycles
+  header.cycles = program.cycles; // For loops, cycles field stores cycle count
   strncpy(header.name, name, 8);
   header.name[8] = '\0';
   EEPROM.put(addr, header);
@@ -64,56 +64,7 @@ bool loadLoopProgram(uint8_t programId, LoopProgram *program) {
   return true;
 }
 
-// Save a complex program (step-by-step)
-void saveComplexProgram(uint8_t programId, const char *name,
-                        MovementStep *steps, uint8_t stepCount) {
-  if (programId >= MAX_PROGRAMS || stepCount > MAX_STEPS_PER_PROGRAM)
-    return;
 
-  int addr = PROGRAMS_ADDR + (programId * PROGRAM_SIZE);
-
-  // Save program header
-  ProgramHeader header;
-  header.type = PROGRAM_TYPE_COMPLEX;
-  header.stepCount = stepCount;
-  strncpy(header.name, name, 8);
-  header.name[8] = '\0';
-  EEPROM.put(addr, header);
-
-  // Save movement steps
-  int stepAddr = addr + sizeof(ProgramHeader);
-  for (int i = 0; i < stepCount; i++) {
-    EEPROM.put(stepAddr + (i * sizeof(MovementStep)), steps[i]);
-  }
-
-  // Update program count if necessary
-  if (programId >= config.programCount) {
-    config.programCount = programId + 1;
-    saveConfig();
-  }
-}
-
-// Load a complex program
-uint8_t loadComplexProgram(uint8_t programId, MovementStep *steps) {
-  if (programId >= MAX_PROGRAMS)
-    return 0;
-
-  int addr = PROGRAMS_ADDR + (programId * PROGRAM_SIZE);
-
-  // Check program type
-  ProgramHeader header;
-  EEPROM.get(addr, header);
-  if (header.type != PROGRAM_TYPE_COMPLEX)
-    return 0;
-
-  // Load movement steps
-  int stepAddr = addr + sizeof(ProgramHeader);
-  for (int i = 0; i < header.stepCount; i++) {
-    EEPROM.get(stepAddr + (i * sizeof(MovementStep)), steps[i]);
-  }
-
-  return header.stepCount;
-}
 
 // Get program type
 uint8_t getProgramType(uint8_t programId) {

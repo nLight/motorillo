@@ -47,15 +47,11 @@ void processCommandCode(uint8_t cmdCode, char *data, int dataLen) {
     Serial.println(programType);
 
     if (programType == PROGRAM_TYPE_LOOP) {
-      Serial.println("Running program");
+      Serial.println("Running loop program");
       runLoopProgram(programId);
       displayMessage(F("Done"));
-    } else if (programType == PROGRAM_TYPE_COMPLEX) {
-      Serial.println("Running program");
-      runProgram(programId);
-      displayMessage(F("Done"));
     } else {
-      Serial.println("Invalid Program");
+      Serial.println("ERROR: Invalid program type");
       displayMessage(F("Invalid Program"));
     }
     break;
@@ -113,22 +109,21 @@ void processCommandCode(uint8_t cmdCode, char *data, int dataLen) {
     // Send all EEPROM data in binary format for bulk loading
     // Format: programCount(1) + programs(variable)
 
-    // Count valid programs
+    // Count valid programs (only loop programs)
     uint8_t programCount = 0;
     for (uint8_t i = 0; i < MAX_PROGRAMS; i++) {
       uint8_t progType = getProgramType(i);
-      if (progType == PROGRAM_TYPE_LOOP || progType == PROGRAM_TYPE_COMPLEX) {
+      if (progType == PROGRAM_TYPE_LOOP) {
         programCount++;
       }
     }
 
     Serial.write(programCount);
 
-    // Send each program
+    // Send each program (only loop programs)
     for (uint8_t i = 0; i < MAX_PROGRAMS; i++) {
       uint8_t programType = getProgramType(i);
-      if (programType != PROGRAM_TYPE_LOOP &&
-          programType != PROGRAM_TYPE_COMPLEX)
+      if (programType != PROGRAM_TYPE_LOOP)
         continue;
 
       // Program header: programId(1), type(1), name(8)
@@ -139,25 +134,12 @@ void processCommandCode(uint8_t cmdCode, char *data, int dataLen) {
       loadProgramName(i, name);
       Serial.write(name, 8);
 
-      if (programType == PROGRAM_TYPE_LOOP) {
-        LoopProgram loopProg;
-        if (loadLoopProgram(i, &loopProg)) {
-          // Loop program data: steps(2), delayMs(4), cycles(1)
-          Serial.write((uint8_t *)&loopProg.steps, 2);
-          Serial.write((uint8_t *)&loopProg.delayMs, 4);
-          Serial.write((uint8_t *)&loopProg.cycles, 1);
-        }
-      } else if (programType == PROGRAM_TYPE_COMPLEX) {
-        // Complex program data: stepCount(1) + steps(stepCount*8)
-        MovementStep steps[MAX_STEPS_PER_PROGRAM];
-        uint8_t stepCount = loadComplexProgram(i, steps);
-        Serial.write(stepCount);
-
-        for (int j = 0; j < stepCount; j++) {
-          Serial.write((uint8_t *)&steps[j].position, 2);
-          Serial.write((uint8_t *)&steps[j].speed, 4);
-          Serial.write((uint8_t *)&steps[j].pauseMs, 2);
-        }
+      // Loop program data: steps(2), delayMs(4), cycles(1)
+      LoopProgram loopProg;
+      if (loadLoopProgram(i, &loopProg)) {
+        Serial.write((uint8_t *)&loopProg.steps, 2);
+        Serial.write((uint8_t *)&loopProg.delayMs, 4);
+        Serial.write((uint8_t *)&loopProg.cycles, 1);
       }
     }
 

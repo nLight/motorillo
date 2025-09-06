@@ -25,9 +25,9 @@ steppper/
 
 ### 1. Config Manager (`config_manager.h/.cpp`)
 
-- **Purpose**: Handles EEPROM operations for program storage
-- **Functions**: Store/retrieve movement programs, manage program count
-- **Data Structures**: `SliderConfig` (simplified), `MovementStep`, `LoopProgram`
+- **Purpose**: Handles EEPROM operations for loop program storage only
+- **Functions**: Store/retrieve loop programs, manage program count
+- **Data Structures**: `SliderConfig` (simplified), `LoopProgram`
 - **Constants**: Default motor settings (speed, acceleration, microstepping)
 
 ### 2. Motor Control (`motor_control.h/.cpp`)
@@ -52,8 +52,8 @@ steppper/
 
 - **Purpose**: Processes WebUSB and serial commands
 - **Functions**: Parse commands, execute actions, send responses
-- **Features**: Program management, manual control, bulk EEPROM loading
-- **Simplified**: No configuration commands - programs contain their own speed settings
+- **Features**: Loop program management, manual control, bulk EEPROM loading
+- **Simplified**: Only supports loop programs - no complex multi-step programs
 
 ## Benefits of Modular Structure
 
@@ -74,9 +74,9 @@ The functionality remains exactly the same as the original monolithic version. A
 
 - WebUSB browser control
 - Standalone operation with OLED menu
-- Program storage and execution with individual speed settings
+- Loop program storage and execution with individual speed settings
 - Button control with pause/resume
-- Program management (no global configuration needed)
+- Simple loop program management (no complex multi-step programs)
 - Microstepping support
 - **Bulk EEPROM loading** for efficient data transfer
 

@@ -88,37 +88,7 @@ void moveToPositionWithSpeed(long targetPosition, uint32_t speedMs) {
   currentPosition = targetPosition;
 }
 
-// Run a stored program (legacy complex program)
-void runProgram(uint8_t programId) {
-  MovementStep steps[MAX_STEPS_PER_PROGRAM];
-  uint8_t stepCount = loadComplexProgram(programId, steps);
 
-  for (int i = 0; i < stepCount; i++) {
-    // Check if we should pause before starting this step
-    if (programPaused) {
-      return; // Exit if paused
-    }
-
-    // Move to position with step speed (already in milliseconds)
-    moveToPositionWithSpeed(steps[i].position, steps[i].speed);
-
-    // Check if we got paused during movement
-    if (programPaused) {
-      return; // Exit if paused during movement
-    }
-
-    // Handle pause time with pause checking
-    if (steps[i].pauseMs > 0) {
-      unsigned long pauseStart = millis();
-      while (millis() - pauseStart < steps[i].pauseMs) {
-        if (programPaused) {
-          return; // Exit if paused during pause
-        }
-        delay(10); // Small delay to prevent tight loop
-      }
-    }
-  }
-}
 
 // Run a loop program (forward/backward cycles)
 void runLoopProgram(uint8_t programId) {
@@ -207,8 +177,9 @@ void executeStoredProgram() {
     uint8_t programType = getProgramType(programToRun);
     if (programType == PROGRAM_TYPE_LOOP) {
       runLoopProgram(programToRun);
-    } else if (programType == PROGRAM_TYPE_COMPLEX) {
-      runProgram(programToRun);
+    } else {
+      Serial.println(F("ERROR: Invalid program type"));
+      return;
     }
 
     // Check if this is a cycling program based on name

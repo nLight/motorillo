@@ -8,14 +8,24 @@ extern long currentPosition;
 extern bool programPaused;
 extern bool programRunning;
 
-// Yielding delay function - breaks long delays into chunks to allow other tasks
+// Function pointer for yield callback
+typedef void (*YieldCallback)();
+
+// Global yield callback - can be set by different modules
+YieldCallback yieldCallback = nullptr;
+
+// Set the yield callback function
+void setYieldCallback(YieldCallback callback) { yieldCallback = callback; }
+
+// Generic yielding delay function - calls whatever callback is registered
 void yieldingDelay(uint32_t delayMs) {
   const uint32_t YIELD_CHUNK_MS = 10; // Check every 10ms for responsiveness
 
   if (delayMs <= YIELD_CHUNK_MS) {
-    // Short delay - just use regular delay
+    // Short delay - use regular delay but still yield
     delay(delayMs);
-    checkButton(); // Check for pause/stop button
+    if (yieldCallback)
+      yieldCallback(); // Call registered yield function
     return;
   }
 
@@ -25,8 +35,9 @@ void yieldingDelay(uint32_t delayMs) {
     delay(thisChunk);
     remaining -= thisChunk;
 
-    // Yield to other tasks every chunk
-    checkButton(); // Check for pause/stop button
+    // Yield to registered callback
+    if (yieldCallback)
+      yieldCallback();
 
     // Early exit if paused or stopped
     if (programPaused || !programRunning) {

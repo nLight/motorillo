@@ -25,10 +25,15 @@ extern MenuItem menuItems[];
 extern int menuItemCount;
 extern int currentMenuIndex;
 
+// Yield callback function pointer type
+typedef void (*YieldCallback)();
+
 // Function declarations
 void setupMotorPins();
 void setMicrostepping(uint8_t mode);
-void yieldingDelay(uint32_t delayMs); // Non-blocking delay with task yielding
+void setYieldCallback(YieldCallback callback); // Set yield callback
+void yieldingDelay(
+    uint32_t delayMs); // Non-blocking delay with callback yielding
 void moveToPositionWithSpeed(long targetPosition, uint32_t speedMs);
 void runProgram(uint8_t programId);
 void runLoopProgram(uint8_t programId);

@@ -98,6 +98,9 @@ void setup() {
   setupButton();
   setupDisplay();
 
+  // Set yield callback for motor control
+  setYieldCallback(checkButton);
+
   loadConfig();
 
   // Build menu items based on stored programs

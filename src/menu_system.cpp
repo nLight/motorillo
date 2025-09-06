@@ -22,9 +22,7 @@ bool inPauseMenu = false;
 int pauseMenuIndex = 0;
 
 // Setup button pin
-void setupButton() {
-  pinMode(buttonPin, INPUT_PULLUP);
-}
+void setupButton() { pinMode(buttonPin, INPUT_PULLUP); }
 
 // Check button state (with debouncing)
 void checkButton() {
@@ -81,7 +79,8 @@ void checkButton() {
   }
 
   // Check for long press while button is still held
-  if (buttonPressed && !longPressDetected && (millis() - buttonPressTime) >= LONG_PRESS_THRESHOLD) {
+  if (buttonPressed && !longPressDetected &&
+      (millis() - buttonPressTime) >= LONG_PRESS_THRESHOLD) {
     longPressDetected = true;
   }
 
@@ -94,7 +93,8 @@ void buildMenuItems() {
 
   // Add stored programs
   for (int i = 0; i < config.programCount && i < MAX_PROGRAMS; i++) {
-    loadProgramName(i, menuItems[menuItemCount].name); // Load directly into char array
+    loadProgramName(
+        i, menuItems[menuItemCount].name); // Load directly into char array
     menuItems[menuItemCount].type = 0;
     menuItems[menuItemCount].id = i;
     menuItemCount++;
@@ -145,30 +145,30 @@ void selectMenuItem() {
   MenuItem selectedItem = menuItems[currentMenuIndex];
 
   switch (selectedItem.type) {
-    case 0: // Program
-      exitMenuMode();
-      displayMessage(F("RUN"), 200);
-      programRunning = true;
-      programPaused = false;
-      break;
+  case 0: // Program
+    exitMenuMode();
+    displayMessage(F("RUN"), 200);
+    programRunning = true;
+    programPaused = false;
+    break;
 
-    case 2: // Info
-      display.clearDisplay();
-      display.setTextSize(1);
-      display.setTextColor(SSD1306_WHITE);
+  case 2: // Info
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
 
-      display.setCursor(0, 0);
-      display.print(F("PGM:"));
-      display.print(config.programCount);
+    display.setCursor(0, 0);
+    display.print(F("PGM:"));
+    display.print(config.programCount);
 
-      display.setCursor(0, 8);
-      display.print(F("POS:"));
-      display.print(currentPosition);
+    display.setCursor(0, 8);
+    display.print(F("POS:"));
+    display.print(currentPosition);
 
-      display.display();
-      delay(1500);
-      exitMenuMode();
-      break;
+    display.display();
+    delay(1500);
+    exitMenuMode();
+    break;
   }
 }
 
@@ -196,17 +196,18 @@ void navigatePauseMenu() {
 // Select pause menu item
 void selectPauseMenuItem() {
   switch (pauseMenuIndex) {
-    case 0:
-      programPaused = false;
-      exitPauseMenu();
-      displayMessage(F("RESUME"), 200);
-      break;
+  case 0:
+    programPaused = false;
+    displayMessage(F("RESUME"), 200);
+    exitPauseMenu();
+    break;
 
-    case 1:
-      programRunning = false;
-      programPaused = false;
-      inPauseMenu = false;
-      displayMessage(F("ABORT"), 500);
-      break;
+  case 1:
+    programRunning = false;
+    programPaused = false;
+    displayMessage(F("ABORT"), 500);
+    exitPauseMenu();
+    enterMenuMode();
+    break;
   }
 }

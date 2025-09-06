@@ -34,19 +34,30 @@ void updateDisplay(long position) {
   } else if (programmingMode) {
     // Programming mode display
     display.print(F("WebUSB"));
+
+    display.fillCircle(65, 9, 2, SSD1306_WHITE);
+    display.drawLine(66, 9, 90, 9, SSD1306_WHITE);
+    display.drawLine(73, 9, 77, 4, SSD1306_WHITE);
+    display.drawLine(77, 4, 80, 4, SSD1306_WHITE);
+    display.fillCircle(80, 3, 1, SSD1306_WHITE);
+    display.drawLine(76, 9, 80, 13, SSD1306_WHITE);
+    display.drawLine(80, 13, 83, 13, SSD1306_WHITE);
+    display.drawRect(83, 12, 3, 3, SSD1306_WHITE);
+    display.drawLine(89, 8, 89, 10, SSD1306_WHITE);
+
   } else {
     // Standalone mode display
     if (programRunning) {
       if (programPaused) {
-        display.print(F("PAUSE\n"));
+        display.print(F("Paused\n"));
       } else {
-        display.print(F("RUN\n"));
+        display.print(F("Running\n"));
       }
     } else {
-      display.print(F("STOP\n"));
+      display.print(F("Stop\n"));
     }
 
-    display.print(F("POS:"));
+    display.print(F("Pos:"));
     display.print(position);
   }
 

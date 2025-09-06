@@ -23,7 +23,6 @@ enum CommandCode {
 
 // Process numeric command codes (binary format for maximum efficiency)
 void processCommandCode(uint8_t cmdCode, char *data, int dataLen) {
-  displayMessage(cmdCode);
   switch (cmdCode) {
   case CMD_POS: {
     // Binary format: position(2)

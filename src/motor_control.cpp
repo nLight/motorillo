@@ -1,5 +1,6 @@
 #include "motor_control.h"
 #include "config_manager.h"
+#include "display_manager.h"
 #include "menu_system.h"
 
 // External variables (defined in main sketch)
@@ -83,6 +84,8 @@ void moveToPositionWithSpeed(long targetPosition, uint32_t speedMs) {
     delay(adjustedSpeedMs);
     digitalWrite(STEP_PIN, LOW);
     delay(adjustedSpeedMs);
+
+    updateDisplay(i);
   }
 
   currentPosition = targetPosition;

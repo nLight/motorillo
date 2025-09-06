@@ -19,7 +19,7 @@ void setupDisplay() {
 }
 
 // Update display periodically
-void updateDisplay() {
+void updateDisplay(long position) {
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
@@ -38,16 +38,16 @@ void updateDisplay() {
     // Standalone mode display
     if (programRunning) {
       if (programPaused) {
-        display.print(F("PAUSE "));
+        display.print(F("PAUSE\n"));
       } else {
-        display.print(F("RUN "));
+        display.print(F("RUN\n"));
       }
     } else {
-      display.print(F("STOP "));
+      display.print(F("STOP\n"));
     }
 
     display.print(F("POS:"));
-    display.print(currentPosition);
+    display.print(position);
   }
 
   display.display();

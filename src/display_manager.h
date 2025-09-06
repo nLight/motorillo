@@ -1,10 +1,10 @@
 #ifndef DISPLAY_MANAGER_H
 #define DISPLAY_MANAGER_H
 
-#include <Arduino.h>
-#include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <Arduino.h>
+#include <Wire.h>
 
 #include "config_manager.h"
 
@@ -25,8 +25,8 @@ extern bool programPaused;
 
 // Function declarations
 void setupDisplay();
-void updateDisplay();
-void displayMessage(const __FlashStringHelper* message, int duration = 1000);
+void updateDisplay(long position = currentPosition);
+void displayMessage(const __FlashStringHelper *message, int duration = 1000);
 void playBootAnimation();
 void displayMenu();
 void displayPauseMenu();

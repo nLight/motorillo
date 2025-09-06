@@ -12,8 +12,10 @@ enum CommandCode {
   CMD_HOME = 6,
   CMD_SETHOME = 8,
   CMD_LOOP_PROGRAM = 9,
-  CMD_GET_ALL_DATA = 13, // New: Bulk EEPROM load
-  CMD_DEBUG_INFO = 14    // New: Debug info
+  CMD_GET_ALL_DATA = 13,   // New: Bulk EEPROM load
+  CMD_DEBUG_INFO = 14,     // New: Debug info
+  CMD_POS_WITH_SPEED = 15, // New: Position with custom speed
+  CMD_HOME_WITH_SPEED = 16 // New: Home with custom speed
 };
 
 // Process numeric command codes (binary format for maximum efficiency)
@@ -139,11 +141,31 @@ void processCommandCode(uint8_t cmdCode, char *data, int dataLen) {
 
     Serial.println(); // End with newline
     break;
+  }
+  case CMD_DEBUG_INFO: {
+    // Simple ping response for connection checking
+    Serial.println("PONG");
+    break;
+  }
+  case CMD_POS_WITH_SPEED: {
+    // Binary format: position(2), speed(4)
+    uint16_t position = *(uint16_t *)data;
+    uint32_t speedMs = *(uint32_t *)(data + 2);
+    displayMessage(F("Move"));
+    moveToPositionWithSpeed(position, speedMs);
+    break;
+  }
+  case CMD_HOME_WITH_SPEED: {
+    // Binary format: speed(4)
+    uint32_t speedMs = *(uint32_t *)data;
+    displayMessage(F("Home"));
+    moveToPositionWithSpeed(0, speedMs);
+    break;
+  }
   default:
     displayMessage(F("Unknown Cmd"));
     Serial.println("Unknown Command"); // End with newline
     break;
-  }
   }
 }
 

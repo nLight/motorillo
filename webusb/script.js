@@ -5,10 +5,12 @@ class SliderController {
 
     // Command codes for memory efficiency
     this.CMD_POS = 2;
+    this.CMD_POS_WITH_SPEED = 15; // New: Position with custom speed
     this.CMD_RUN = 3;
     this.CMD_START = 4;
     this.CMD_STOP = 5;
     this.CMD_HOME = 6;
+    this.CMD_HOME_WITH_SPEED = 16; // New: Home with custom speed
     this.CMD_SETHOME = 8;
     this.CMD_LOOP_PROGRAM = 9;
     this.CMD_GET_ALL_DATA = 13; // Request all EEPROM data
@@ -56,7 +58,7 @@ class SliderController {
       .addEventListener("click", () => this.sendCommand(this.CMD_SETHOME));
     document
       .getElementById("homeBtn")
-      .addEventListener("click", () => this.sendCommand(this.CMD_HOME));
+      .addEventListener("click", () => this.handleHome());
     document
       .getElementById("moveBtn")
       .addEventListener("click", () => this.handleMove());
@@ -82,6 +84,14 @@ class SliderController {
     // Set up program slot change handler
     document.getElementById("programSlot").addEventListener("change", () => {
       this.loadProgramNameFromStorage();
+    });
+
+    // Load saved manual speed
+    this.loadManualSpeed();
+
+    // Save manual speed when changed
+    document.getElementById("manualSpeed").addEventListener("change", () => {
+      this.saveManualSpeed();
     });
   }
 
@@ -133,6 +143,12 @@ class SliderController {
   }
 
   async disconnect() {
+    // Clear connection check interval
+    if (this.connectionCheckInterval) {
+      clearInterval(this.connectionCheckInterval);
+      this.connectionCheckInterval = null;
+    }
+
     if (this.port) {
       try {
         await this.port.disconnect();
@@ -146,6 +162,36 @@ class SliderController {
     this.updateConnectionStatus(false);
   }
 
+  handleDisconnection(reason) {
+    if (this.connected) {
+      this.log(`Connection lost: ${reason}`);
+      this.connected = false;
+      this.port = null;
+      this.updateConnectionStatus(false);
+
+      // Clear connection check interval
+      if (this.connectionCheckInterval) {
+        clearInterval(this.connectionCheckInterval);
+        this.connectionCheckInterval = null;
+      }
+    }
+  }
+
+  async checkConnection() {
+    if (!this.connected || !this.port) {
+      return;
+    }
+
+    try {
+      // Send a simple ping command to check if connection is alive
+      // Use CMD_DEBUG_INFO as a lightweight ping
+      await this.port.send(new Uint8Array([this.CMD_DEBUG_INFO]));
+    } catch (error) {
+      console.log("Connection check failed:", error);
+      this.handleDisconnection("Connection check failed");
+    }
+  }
+
   setupDataListener() {
     // WebUSB serial interface data reception
     this.port.onReceive = (data) => {
@@ -155,7 +201,19 @@ class SliderController {
 
     this.port.onReceiveError = (error) => {
       console.error("Receive error:", error);
+      this.handleDisconnection("Receive error: " + error.message);
     };
+
+    // Handle WebUSB disconnection events
+    this.port.onDisconnect = () => {
+      console.log("WebUSB disconnected");
+      this.handleDisconnection("Device disconnected");
+    };
+
+    // Set up periodic connection check
+    this.connectionCheckInterval = setInterval(() => {
+      this.checkConnection();
+    }, 2000); // Check every 2 seconds
   }
 
   handleIncomingData(data) {
@@ -366,6 +424,7 @@ class SliderController {
       return true;
     } catch (error) {
       this.log("Send error: " + error.message);
+      this.handleDisconnection("Send failed: " + error.message);
       return false;
     }
   }
@@ -386,13 +445,44 @@ class SliderController {
 
   handleMove() {
     const position = parseInt(document.getElementById("targetPosition").value);
+    const speed = parseInt(document.getElementById("manualSpeed").value);
 
-    // Binary format: position(2)
-    const buffer = new ArrayBuffer(2);
+    // Validate inputs
+    if (isNaN(position) || position < 0) {
+      this.log("Error: Invalid position value");
+      return;
+    }
+    if (isNaN(speed) || speed < 1 || speed > 4294967295) {
+      this.log("Error: Speed must be between 1 and 4,294,967,295 milliseconds");
+      return;
+    }
+
+    // Binary format: position(2), speed(4)
+    const buffer = new ArrayBuffer(6);
     const view = new DataView(buffer);
     view.setUint16(0, position, true);
+    view.setUint32(2, speed, true);
 
-    this.sendCommand(this.CMD_POS, new Uint8Array(buffer));
+    this.sendCommand(this.CMD_POS_WITH_SPEED, new Uint8Array(buffer));
+    this.log(`Moving to position ${position} at ${speed}ms per step`);
+  }
+
+  handleHome() {
+    const speed = parseInt(document.getElementById("manualSpeed").value);
+
+    // Validate speed
+    if (isNaN(speed) || speed < 1 || speed > 4294967295) {
+      this.log("Error: Speed must be between 1 and 4,294,967,295 milliseconds");
+      return;
+    }
+
+    // Binary format: speed(4)
+    const buffer = new ArrayBuffer(4);
+    const view = new DataView(buffer);
+    view.setUint32(0, speed, true);
+
+    this.sendCommand(this.CMD_HOME_WITH_SPEED, new Uint8Array(buffer));
+    this.log(`Going home at ${speed}ms per step`);
   }
 
   saveProgram() {
@@ -499,6 +589,18 @@ class SliderController {
       const data = JSON.parse(saved);
       this.programNames = data.names || {};
       this.loopPrograms = data.loopPrograms || {};
+    }
+  }
+
+  saveManualSpeed() {
+    const speed = document.getElementById("manualSpeed").value;
+    localStorage.setItem("sliderManualSpeed", speed);
+  }
+
+  loadManualSpeed() {
+    const savedSpeed = localStorage.getItem("sliderManualSpeed");
+    if (savedSpeed) {
+      document.getElementById("manualSpeed").value = savedSpeed;
     }
   }
 

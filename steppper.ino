@@ -33,6 +33,12 @@ const unsigned long serialWaitTime =
     3000; // Wait 3 seconds for WebUSB connection
 bool serialCheckComplete = false;
 
+// WebUSB disconnection detection
+unsigned long lastWebUSBActivity = 0;
+const unsigned long webUSBTimeoutMs =
+    3000; // Reduced to 3 seconds for faster detection
+bool wasInProgrammingMode = false;
+
 // Main program variables
 bool programRunning = false;
 bool programPaused = false;
@@ -79,12 +85,30 @@ void loop() {
   // Continue to check for WebUSB connection even after boot
   if (serialCheckComplete && !programmingMode && Serial) {
     programmingMode = true;
+    wasInProgrammingMode = true;
+    lastWebUSBActivity = millis(); // Update activity timestamp
     // Exit menu mode when switching to programming mode
     if (inMenuMode) {
       exitMenuMode();
     }
     Serial.write("Ok\n");
     Serial.flush();
+  }
+
+  // Detect WebUSB disconnection
+  if (programmingMode && serialCheckComplete) {
+    // Check if we haven't received any data for a while
+    if (millis() - lastWebUSBActivity > webUSBTimeoutMs) {
+      // WebUSB seems to be disconnected
+      programmingMode = false;
+      wasInProgrammingMode = false;
+      // Enter menu mode automatically
+      if (!inMenuMode) {
+        enterMenuMode();
+      }
+      updateDisplay(); // Update display to show new mode
+      Serial.println("[DEBUG] WebUSB timeout - switched to standalone mode");
+    }
   }
 
   // Check button state (with debouncing)
@@ -99,6 +123,9 @@ void loop() {
   }
 
   if (programmingMode && Serial && Serial.available()) {
+    // Update activity timestamp when we receive data
+    lastWebUSBActivity = millis();
+
     // Check if this is a binary command (first byte < 20)
     uint8_t firstByte = Serial.peek();
 

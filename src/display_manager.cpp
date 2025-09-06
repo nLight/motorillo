@@ -33,7 +33,8 @@ void updateDisplay(long position) {
     displayMenu();
   } else if (programmingMode) {
     // Programming mode display
-    display.print(F("WebUSB"));
+    display.print(F("WebUSB\n"));
+    display.print(F("Connected"));
 
     display.fillCircle(65, 9, 2, SSD1306_WHITE);
     display.drawLine(66, 9, 90, 9, SSD1306_WHITE);

@@ -90,6 +90,11 @@
                         <button id="setHomeBtn">Set Home (Current Position)</button>
                         <button id="homeBtn">Go to Home (Position 0)</button>
                     </div>
+                    <div class="velocity-control">
+                        <label for="manualSpeed">Movement Speed (milliseconds per step):</label>
+                        <input type="number" id="manualSpeed" value="1000" min="1" max="4294967295">
+                        <span class="help">Lower = faster, Higher = slower (1ms = very fast, 10000ms = very slow)</span>
+                    </div>
                     <div class="position-control">
                         <label for="targetPosition">Go to Position:</label>
                         <input type="number" id="targetPosition" value="0" min="0" max="5000">

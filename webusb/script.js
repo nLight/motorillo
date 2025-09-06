@@ -4,17 +4,14 @@ class SliderController {
     this.connected = false;
 
     // Command codes for memory efficiency
-    this.CMD_POS = 2;
-    this.CMD_POS_WITH_SPEED = 15; // New: Position with custom speed
     this.CMD_RUN = 3;
     this.CMD_START = 4;
     this.CMD_STOP = 5;
-    this.CMD_HOME = 6;
-    this.CMD_HOME_WITH_SPEED = 16; // New: Home with custom speed
     this.CMD_SETHOME = 8;
     this.CMD_LOOP_PROGRAM = 9;
     this.CMD_GET_ALL_DATA = 13; // Request all EEPROM data
     this.CMD_DEBUG_INFO = 14; // Request debug information
+    this.CMD_POS_WITH_SPEED = 15; // Position with custom speed (handles both move and home)
 
     this.init();
   }
@@ -227,14 +224,36 @@ class SliderController {
         data instanceof ArrayBuffer ? data : data.buffer
       );
 
-      // Check if this looks like binary data (first byte < 32 or very long)
-      if (
-        uint8Data.length > 0 &&
-        (uint8Data[0] < 32 || uint8Data.length > 50)
-      ) {
-        isBinary = true;
-        this.handleBinaryData(uint8Data);
-        return;
+      // Improved binary detection for bulk EEPROM data:
+      // 1. Must be substantial size (bulk data is much larger than text messages)
+      // 2. First byte should be reasonable program count (0-10)
+      // 3. Should not be printable text throughout
+      const firstByte = uint8Data[0];
+
+      if (uint8Data.length > 20) {
+        // Check if this could be bulk EEPROM data
+        // Program count should be reasonable (0-10)
+        const seemsLikeProgramCount = firstByte >= 0 && firstByte <= 10;
+
+        // Check if it contains mostly non-printable or structured binary data
+        // Look at a few bytes to see if it has the binary structure we expect
+        let nonPrintableCount = 0;
+        const sampleSize = Math.min(20, uint8Data.length);
+        for (let i = 0; i < sampleSize; i++) {
+          if (uint8Data[i] < 32 && uint8Data[i] !== 10 && uint8Data[i] !== 13) {
+            nonPrintableCount++;
+          }
+        }
+
+        // If it starts with reasonable program count and has binary characteristics
+        if (
+          seemsLikeProgramCount &&
+          (nonPrintableCount > sampleSize * 0.3 || uint8Data.length > 100)
+        ) {
+          isBinary = true;
+          this.handleBinaryData(uint8Data);
+          return;
+        }
       }
 
       // Convert to string for text processing
@@ -274,10 +293,8 @@ class SliderController {
   handleBinaryData(data) {
     if (data.length < 2) return;
 
-    const bytes = new Uint8Array(data.length);
-    for (let i = 0; i < data.length; i++) {
-      bytes[i] = data.charCodeAt(i);
-    }
+    // data is already a Uint8Array, no conversion needed
+    const bytes = data;
 
     // Check if this is bulk data (much longer than individual programs)
     if (data.length > 50) {
@@ -334,11 +351,23 @@ class SliderController {
 
     let offset = 0;
 
-    // Parse program count (first byte now)
+    // Validate minimum size
+    if (bytes.length < 1) {
+      this.log("ERROR: Bulk data too small");
+      return;
+    }
+
+    // Parse program count (first byte)
     const programCount = bytes[offset];
     offset += 1;
 
     this.log(`Loading ${programCount} programs from EEPROM`);
+
+    // Sanity check on program count
+    if (programCount > 10) {
+      this.log(`ERROR: Invalid program count ${programCount}, aborting parse`);
+      return;
+    }
 
     // Clear existing programs
     this.loopPrograms = {};
@@ -346,6 +375,12 @@ class SliderController {
 
     // Parse each program (only loop programs)
     for (let i = 0; i < programCount; i++) {
+      // Check if we have enough bytes left
+      if (offset + 10 > bytes.length) {
+        this.log(`ERROR: Not enough data for program ${i}, stopping parse`);
+        break;
+      }
+
       const programId = bytes[offset];
       const programType = bytes[offset + 1];
 
@@ -364,7 +399,12 @@ class SliderController {
       offset += 10; // programId(1) + type(1) + name(8)
 
       if (programType === 0) {
-        // Loop program
+        // Loop program - need 7 more bytes
+        if (offset + 7 > bytes.length) {
+          this.log(`ERROR: Not enough data for loop program ${programId}`);
+          break;
+        }
+
         const loopView = new DataView(bytes.buffer, offset);
         const steps = loopView.getUint16(0, true);
         const delayMs = loopView.getUint32(2, true);
@@ -378,8 +418,9 @@ class SliderController {
         this.log(
           `WARNING: Skipping unsupported program type ${programType} for "${name}"`
         );
-        // Skip unknown program types - we don't know their size, so this might break parsing
-        // In practice, this shouldn't happen since we only support loop programs now
+        // For unknown program types, we can't safely skip them as we don't know the size
+        this.log("ERROR: Cannot continue parsing due to unknown program type");
+        break;
       }
     }
 
@@ -476,13 +517,17 @@ class SliderController {
       return;
     }
 
-    // Binary format: speed(4)
-    const buffer = new ArrayBuffer(4);
-    const view = new DataView(buffer);
-    view.setUint32(0, speed, true);
+    // Use position command with position 0 (home)
+    const position = 0;
 
-    this.sendCommand(this.CMD_HOME_WITH_SPEED, new Uint8Array(buffer));
-    this.log(`Going home at ${speed}ms per step`);
+    // Binary format: position(2), speed(4)
+    const buffer = new ArrayBuffer(6);
+    const view = new DataView(buffer);
+    view.setUint16(0, position, true);
+    view.setUint32(2, speed, true);
+
+    this.sendCommand(this.CMD_POS_WITH_SPEED, new Uint8Array(buffer));
+    this.log(`Going home (position 0) at ${speed}ms per step`);
   }
 
   saveProgram() {

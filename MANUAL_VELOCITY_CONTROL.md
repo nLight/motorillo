@@ -30,19 +30,24 @@ When the configuration system was removed, the ability to set custom movement sp
 
 ## Command Protocol Changes
 
-### New Commands
+### Unified Position Command
 
-- **CMD_POS_WITH_SPEED (15)**: Move to position with custom speed
+- **CMD_POS_WITH_SPEED (15)**: Move to any position with custom speed
   - Format: `position(2 bytes) + speed(4 bytes)`
-  - Replaces the old `CMD_POS` for manual movements
-- **CMD_HOME_WITH_SPEED (16)**: Home with custom speed
-  - Format: `speed(4 bytes)`
-  - Replaces the old `CMD_HOME` for manual movements
+  - Handles both regular moves and home operations (position 0)
+  - Replaces all previous position and home commands
 
-### Backward Compatibility
+### Removed Commands
 
-- Old commands (`CMD_POS`, `CMD_HOME`) still work with `DEFAULT_SPEED_MS`
-- Ensures compatibility with any legacy code or external tools
+- **CMD_POS (2)**: Legacy position command without speed - removed
+- **CMD_HOME (6)**: Legacy home command without speed - removed
+- **CMD_HOME_WITH_SPEED (16)**: Separate home command - removed
+
+### Simplified Protocol
+
+- All manual movements now use the unified position command with custom speed
+- Home operation is implemented as moving to position 0 with user-specified speed
+- This simplifies the protocol while maintaining full functionality
 
 ## JavaScript Implementation
 
@@ -59,9 +64,10 @@ handleMove() {
 
 handleHome() {
   const speed = parseInt(document.getElementById("manualSpeed").value);
+  const position = 0; // Home is position 0
 
-  // Validation + binary protocol
-  this.sendCommand(this.CMD_HOME_WITH_SPEED, buffer);
+  // Uses same position command with position 0
+  this.sendCommand(this.CMD_POS_WITH_SPEED, buffer);
 }
 ```
 
@@ -80,19 +86,14 @@ handleHome() {
 
 ## Arduino Firmware Changes
 
-### New Command Handlers
+### Unified Command Handler
 
 ```cpp
 case CMD_POS_WITH_SPEED: {
   uint16_t position = *(uint16_t *)data;
   uint32_t speedMs = *(uint32_t *)(data + 2);
   moveToPositionWithSpeed(position, speedMs);
-  break;
-}
-
-case CMD_HOME_WITH_SPEED: {
-  uint32_t speedMs = *(uint32_t *)data;
-  moveToPositionWithSpeed(0, speedMs);
+  // Handles both regular moves and home (when position = 0)
   break;
 }
 ```

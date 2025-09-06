@@ -5,29 +5,20 @@
 
 // Command codes for memory efficiency
 enum CommandCode {
-  CMD_POS = 2,
   CMD_RUN = 3,
   CMD_START = 4,
   CMD_STOP = 5,
-  CMD_HOME = 6,
   CMD_SETHOME = 8,
   CMD_LOOP_PROGRAM = 9,
-  CMD_GET_ALL_DATA = 13,   // New: Bulk EEPROM load
-  CMD_DEBUG_INFO = 14,     // New: Debug info
-  CMD_POS_WITH_SPEED = 15, // New: Position with custom speed
-  CMD_HOME_WITH_SPEED = 16 // New: Home with custom speed
+  CMD_GET_ALL_DATA = 13, // Bulk EEPROM load
+  CMD_DEBUG_INFO = 14,   // Debug info
+  CMD_POS_WITH_SPEED =
+      15 // Position with custom speed (handles both move and home)
 };
 
 // Process numeric command codes (binary format for maximum efficiency)
 void processCommandCode(uint8_t cmdCode, char *data, int dataLen) {
   switch (cmdCode) {
-  case CMD_POS: {
-    // Binary format: position(2)
-    uint16_t position = *(uint16_t *)data;
-    displayMessage(F("Move"));
-    moveToPositionWithSpeed(position, DEFAULT_SPEED_MS);
-    break;
-  }
   case CMD_RUN: {
     // Binary format: programId(1)
     uint8_t programId = *(uint8_t *)data;
@@ -60,10 +51,6 @@ void processCommandCode(uint8_t cmdCode, char *data, int dataLen) {
     programRunning = false;
     programPaused = false;
     displayMessage(F("Stop"));
-    break;
-  case CMD_HOME:
-    displayMessage(F("Home"));
-    moveToPositionWithSpeed(0, DEFAULT_SPEED_MS);
     break;
   case CMD_SETHOME:
     displayMessage(F("Set Home"));
@@ -153,13 +140,6 @@ void processCommandCode(uint8_t cmdCode, char *data, int dataLen) {
     uint32_t speedMs = *(uint32_t *)(data + 2);
     displayMessage(F("Move"));
     moveToPositionWithSpeed(position, speedMs);
-    break;
-  }
-  case CMD_HOME_WITH_SPEED: {
-    // Binary format: speed(4)
-    uint32_t speedMs = *(uint32_t *)data;
-    displayMessage(F("Home"));
-    moveToPositionWithSpeed(0, speedMs);
     break;
   }
   default:

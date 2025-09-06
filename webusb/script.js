@@ -271,8 +271,6 @@ class SliderController {
     );
   }
 
-
-
   handleBulkData(bytes) {
     this.log("Received bulk EEPROM data");
 
@@ -319,7 +317,9 @@ class SliderController {
 
         this.log(`Loaded Loop Program "${name}" (slot ${programId + 1})`);
       } else {
-        this.log(`WARNING: Skipping unsupported program type ${programType} for "${name}"`);
+        this.log(
+          `WARNING: Skipping unsupported program type ${programType} for "${name}"`
+        );
         // Skip unknown program types - we don't know their size, so this might break parsing
         // In practice, this shouldn't happen since we only support loop programs now
       }
@@ -395,8 +395,6 @@ class SliderController {
     this.sendCommand(this.CMD_POS, new Uint8Array(buffer));
   }
 
-
-
   saveProgram() {
     const programSlot = document.getElementById("programSlot").value;
     const programName =
@@ -464,10 +462,6 @@ class SliderController {
     this.log(`Testing Program ${programSlot + 1}`);
   }
 
-
-
-
-
   updateConnectionStatus(connected) {
     const status = document.getElementById("status");
     const connectBtn = document.getElementById("connectBtn");
@@ -507,8 +501,6 @@ class SliderController {
       this.loopPrograms = data.loopPrograms || {};
     }
   }
-
-
 
   requestAllDataFromEEPROM() {
     // Request all EEPROM data in one bulk transfer

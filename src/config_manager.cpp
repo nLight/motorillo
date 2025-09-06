@@ -64,8 +64,6 @@ bool loadLoopProgram(uint8_t programId, LoopProgram *program) {
   return true;
 }
 
-
-
 // Get program type
 uint8_t getProgramType(uint8_t programId) {
   if (programId >= MAX_PROGRAMS)

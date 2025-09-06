@@ -88,8 +88,6 @@ void moveToPositionWithSpeed(long targetPosition, uint32_t speedMs) {
   currentPosition = targetPosition;
 }
 
-
-
 // Run a loop program (forward/backward cycles)
 void runLoopProgram(uint8_t programId) {
   LoopProgram loopProg;

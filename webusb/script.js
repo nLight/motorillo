@@ -9,7 +9,6 @@ class SliderController {
     this.CMD_STOP = 5;
     this.CMD_SETHOME = 8;
     this.CMD_LOOP_PROGRAM = 9;
-    this.CMD_GET_ALL_DATA = 13; // Request all EEPROM data
     this.CMD_DEBUG_INFO = 14; // Request debug information
     this.CMD_POS_WITH_SPEED = 15; // Position with custom speed (handles both move and home)
 
@@ -67,9 +66,6 @@ class SliderController {
     document
       .getElementById("testProgram")
       .addEventListener("click", () => this.testProgram());
-    document
-      .getElementById("loadAllFromEEPROM")
-      .addEventListener("click", () => this.requestAllDataFromEEPROM());
 
     // Initialize program storage - loop programs only
     this.programNames = {}; // Store program names locally

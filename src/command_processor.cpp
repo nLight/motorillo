@@ -10,8 +10,7 @@ enum CommandCode {
   CMD_STOP = 5,
   CMD_SETHOME = 8,
   CMD_LOOP_PROGRAM = 9,
-  CMD_GET_ALL_DATA = 13, // Bulk EEPROM load
-  CMD_DEBUG_INFO = 14,   // Debug info
+  CMD_DEBUG_INFO = 14, // Debug info
   CMD_POS_WITH_SPEED =
       15 // Position with custom speed (handles both move and home)
 };
@@ -23,22 +22,15 @@ void processCommandCode(uint8_t cmdCode, char *data, int dataLen) {
     // Binary format: programId(1)
     uint8_t programId = *(uint8_t *)data;
 
-    Serial.print("RUN command received for program ");
-    Serial.println(programId);
-
     programPaused = false;
     displayMessage(F("Running"));
 
     uint8_t programType = getProgramType(programId);
-    Serial.print("Program type: ");
-    Serial.println(programType);
 
     if (programType == PROGRAM_TYPE_LOOP) {
-      Serial.println("Running loop program");
       runLoopProgram(programId);
       displayMessage(F("Done"));
     } else {
-      Serial.println("ERROR: Invalid program type");
       displayMessage(F("Invalid Program"));
     }
     break;
@@ -67,30 +59,13 @@ void processCommandCode(uint8_t cmdCode, char *data, int dataLen) {
     uint32_t delayMs = *(uint32_t *)(data + 11);
     uint8_t cycles = *(uint8_t *)(data + 15);
 
-    Serial.print("Parsed: ID=");
-    Serial.print(programId);
-    Serial.print(", Name=");
-    Serial.print(programName);
-    Serial.print(", Steps=");
-    Serial.print(steps);
-    Serial.print(", Delay=");
-    Serial.print(delayMs);
-    Serial.print(", Cycles=");
-    Serial.println(cycles);
-
     LoopProgram loopProg;
     loopProg.steps = steps;
     loopProg.delayMs = delayMs;
     loopProg.cycles = cycles;
 
     saveLoopProgram(programId, programName, loopProg);
-    Serial.println("Program saved");
     displayMessage(F("Program Saved"));
-    break;
-  }
-  case CMD_GET_ALL_DATA: {
-    // EEPROM data is now sent automatically on connection
-    Serial.println("EEPROM data already sent on connection");
     break;
   }
   case CMD_DEBUG_INFO: {
@@ -110,15 +85,5 @@ void processCommandCode(uint8_t cmdCode, char *data, int dataLen) {
     displayMessage(F("Unknown Cmd"));
     Serial.println("Unknown Command"); // End with newline
     break;
-  }
-}
-
-// Process incoming commands from WebUSB/Serial
-void processCommand(String command) {
-  // Handle text commands (legacy support)
-  if (command.length() > 0) {
-    // For now, just log text commands
-    Serial.print(("Text command received: "));
-    Serial.println(command);
   }
 }

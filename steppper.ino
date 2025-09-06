@@ -190,11 +190,6 @@ void loop() {
 
       // Process the binary command
       processCommandCode(cmdCode, (char *)data, dataLen);
-    } else {
-      // Text command - read until newline
-      String command = Serial.readStringUntil('\n');
-      command.trim();
-      processCommand(command);
     }
   } else if (!programmingMode && programRunning) {
     executeStoredProgram();

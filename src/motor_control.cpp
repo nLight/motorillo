@@ -86,6 +86,7 @@ void moveToPositionWithSpeed(long targetPosition, uint32_t speedMs) {
     delay(adjustedSpeedMs);
 
     updateDisplay(i);
+    checkButton();
   }
 
   currentPosition = targetPosition;
@@ -160,19 +161,6 @@ void executeStoredProgram() {
     } else {
       Serial.println(F("ERROR: Invalid program type"));
       return;
-    }
-
-    // Check if this is a cycling program based on name
-    char programName[9];
-    loadProgramName(programToRun, programName);
-    bool isCycling = (strncmp(programName, "CYCLE", 5) == 0) ||
-                     (strncmp(programName, "LOOP", 4) == 0);
-
-    // If it's a cycling program, restart it immediately
-    if (isCycling) {
-      delay(500); // Brief pause between cycles
-    } else {
-      delay(1000); // Brief pause between program cycles
     }
   } else {
     // No program stored, just idle

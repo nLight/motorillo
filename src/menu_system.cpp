@@ -158,16 +158,12 @@ void selectMenuItem() {
     display.setTextColor(SSD1306_WHITE);
 
     display.setCursor(0, 0);
-    display.print(F("PGM:"));
-    display.print(config.programCount);
-
-    display.setCursor(0, 8);
     display.print(F("POS:"));
     display.print(currentPosition);
 
     display.display();
     delay(1500);
-    exitMenuMode();
+    enterMenuMode();
     break;
   }
 }

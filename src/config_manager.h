@@ -37,7 +37,7 @@ const int MAX_PROGRAMS = 5; // Reduced from 10 to fit in 1024-byte EEPROM
 const int CONFIG_ADDR = 0;
 
 // Default motor settings (no longer configurable)
-const uint8_t DEFAULT_MICROSTEPPING = 1;
+const uint8_t DEFAULT_MICROSTEPPING = 8;
 
 // Program storage - loop programs only!
 // Loop programs: ~16 bytes each

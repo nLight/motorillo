@@ -176,16 +176,15 @@ void displayMenu() {
   }
 
   display.setCursor(0, 0);
-  display.print(F(">"));
-  display.print(menuItems[currentMenuIndex].name);
+  display.print(F("Programs:"));
 
   display.setCursor(0, 8);
   display.print(currentMenuIndex + 1);
   display.print(F("/"));
   display.print(menuItemCount);
 
-  display.setCursor(50, 8);
-  display.print(F("S:> L:OK"));
+  display.print(F(": "));
+  display.print(menuItems[currentMenuIndex].name);
 }
 
 // Display pause menu

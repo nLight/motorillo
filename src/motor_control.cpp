@@ -125,7 +125,7 @@ void moveToPositionWithSpeed(long targetPosition, uint32_t speedMs) {
 
     // Update display less frequently to reduce overhead
     if (i % 10 == 0) {
-      updateDisplay(i);
+      updateDisplay(i / DEFAULT_MICROSTEPPING);
     }
   }
 
